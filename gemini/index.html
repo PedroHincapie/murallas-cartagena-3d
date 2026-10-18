@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Réplica 3D Fiel - Murallas de Cartagena de Indias</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0b0e14;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .interactive {
+            pointer-events: auto;
+        }
+
+        header {
+            background: rgba(11, 14, 20, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(200, 181, 152, 0.2);
+            padding: 15px 25px;
+            border-radius: 8px;
+            color: #f2efe9;
+            max-width: 480px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        header h1 {
+            margin: 0 0 5px 0;
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+            color: #d9a441;
+            text-transform: uppercase;
+        }
+
+        header p {
+            margin: 0;
+            font-size: 0.82rem;
+            color: #c8b598;
+            line-height: 1.3;
+        }
+
+        #controls-panel {
+            background: rgba(11, 14, 20, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(200, 181, 152, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            color: #f2efe9;
+            width: 280px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #c8b598;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #d9a441;
+            cursor: pointer;
+        }
+
+        .btn {
+            background: #d9a441;
+            color: #0b0e14;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:hover {
+            background: #c8b598;
+        }
+
+        #info-panel {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            width: 350px;
+            background: rgba(11, 14, 20, 0.92);
+            backdrop-filter: blur(12px);
+            border: 1px solid #d9a441;
+            border-radius: 8px;
+            padding: 20px;
+            color: #f2efe9;
+            display: none;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        #info-panel h2 {
+            margin-top: 0;
+            color: #d9a441;
+            font-size: 1.1rem;
+            border-bottom: 1px solid rgba(217, 164, 65, 0.3);
+            padding-bottom: 8px;
+        }
+
+        #info-panel p {
+            font-size: 0.85rem;
+            line-height: 1.4;
+            color: #c8b598;
+        }
+
+        #info-panel .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: #f2efe9;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            background: rgba(217, 164, 65, 0.8);
+            border: 1px solid #fff;
+            border-radius: 50%;
+            pointer-events: none;
+            display: none;
+        }
+
+        #fps {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #d9a441;
+            font-family: monospace;
+            font-size: 0.8rem;
+            background: rgba(11, 14, 20, 0.8);
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(200, 181, 152, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="crosshair"></div>
+
+    <div id="ui-overlay">
+        <header class="interactive">
+            <h1>Murallas de Cartagena 3D</h1>
+            <p>Réplica basada estrictamente en fuentes históricas, JSON corregido y PEMP (UNESCO Ref. 285). Escala 1u =
+                1m real.</p>
+        </header>
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
+            <div id="controls-panel" class="interactive">
+                <div class="control-group">
+                    <label>Ciclo Solar (Hora del día)</label>
+                    <input type="range" id="time-slider" min="0" max="24" step="0.1" value="12">
+                </div>
+                <div class="control-group">
+                    <label>Modo de Cámara</label>
+                    <button id="mode-btn" class="btn">Modo Primera Persona (WASD)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="info-panel" class="interactive">
+        <button class="close-btn" id="close-info">&times;</button>
+        <h2 id="info-title">Título</h2>
+        <p id="info-desc">Descripción...</p>
+        <p><strong>Fuente:</strong> <a id="info-source" href="#" target="_blank" style="color: #d9a441;">Enlace
+                fuente</a></p>
+    </div>
+
+    <div id="fps">FPS: 60</div>
+
+    <!-- Three.js y OrbitControls desde CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // ==========================================
+        // 1. CONFIGURACIÓN Y ESTADO GLOBAL
+        // ==========================================
+        let scene, camera, renderer, controls;
+        let clock = new THREE.Clock();
+        let terrainMesh, waterMesh, sunLight, hemiLight;
+        let interactiveObjects = [];
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+
+        // Control de modos de cámara
+        let isFirstPerson = false;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let prevTime = performance.now();
+        let velocity = new THREE.Vector3();
+        let direction = new THREE.Vector3();
+
+        // Origen local en la Torre del Reloj (lat: 10.4227, lon: -75.5492)
+        const ORIGIN_LAT = 10.4227;
+        const ORIGIN_LON = -75.5492;
+        const METERS_PER_DEG_LAT = 110574;
+        const METERS_PER_DEG_LON = 111320 * Math.cos(ORIGIN_LAT * Math.PI / 180);
+
+        function projectCoords(lat, lon) {
+            const x = (lon - ORIGIN_LON) * METERS_PER_DEG_LON;
+            const z = -(lat - ORIGIN_LAT) * METERS_PER_DEG_LAT; // Invertir Z para sistema WebGL (North = -Z)
+            return { x, z };
+        }
+
+        // ==========================================
+        // 2. TEXTURAS PROCEDURALES (Sin imágenes externas)
+        // ==========================================
+        function createCoralStoneTexture(isDark = false) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = isDark ? '#5c5244' : '#c8b598';
+            ctx.fillRect(0, 0, 512, 512);
+
+            // Porosidad y fósiles coralinos
+            for (let i = 0; i < 4000; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const r = Math.random() * 3 + 0.5;
+                ctx.fillStyle = isDark ? 'rgba(40,35,30,0.4)' : 'rgba(140,125,107,0.5)';
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Juntas de sillares (bloques 0.6m x 0.3m escalados)
+            ctx.strokeStyle = isDark ? '#221e1a' : '#8c7d6b';
+            ctx.lineWidth = 2;
+            const stepY = 32;
+            const stepX = 64;
+            for (let y = 0; y <= 512; y += stepY) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
+            }
+            for (let y = 0; y < 512; y += stepY) {
+                const offset = (y / stepY) % 2 === 0 ? 0 : stepX / 2;
+                for (let x = offset; x <= 512; x += stepX) {
+                    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + stepY); ctx.stroke();
+                }
+            }
+
+            // Pátina biológica oscura en zonas inferiores
+            if (isDark) {
+                const grad = ctx.createLinearGradient(0, 0, 0, 512);
+                grad.addColorStop(0, 'rgba(62,58,53,0)');
+                grad.addColorStop(1, 'rgba(30,28,25,0.85)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 512, 512);
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        const wallMaterial = new THREE.MeshStandardMaterial({ map: createCoralStoneTexture(false), roughness: 0.85, metalness: 0.05 });
+        const wallBaseMaterial = new THREE.MeshStandardMaterial({ map: createCoralStoneTexture(true), roughness: 0.9, metalness: 0.05 });
+        const ocreMaterial = new THREE.MeshStandardMaterial({ color: 0xd9a441, roughness: 0.6, metalness: 0.1 });
+
+        // ==========================================
+        // 3. ENTORNO, ILUMINACIÓN Y PAISAJE
+        // ==========================================
+        function setupEnvironment() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111622);
+            scene.fog = new THREE.FogExp2(0x111622, 0.0015);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 45, 120);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.02;
+            controls.minDistance = 5;
+            controls.maxDistance = 600;
+            controls.target.set(0, 10, 0);
+
+            // Iluminación
+            hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4);
+            hemiLight.position.set(0, 200, 0);
+            scene.add(hemiLight);
+
+            sunLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+            sunLight.position.set(150, 200, 100);
+            sunLight.castShadow = true;
+            sunLight.shadow.camera.top = 350;
+            sunLight.shadow.camera.bottom = -350;
+            sunLight.shadow.camera.left = -350;
+            sunLight.shadow.camera.right = 350;
+            sunLight.shadow.camera.near = 0.5;
+            sunLight.shadow.camera.far = 900;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            scene.add(sunLight);
+
+            // Terreno e Islas
+            const terrainGeo = new THREE.PlaneGeometry(3000, 3000, 32, 32);
+            const terrainMat = new THREE.MeshStandardMaterial({ color: 0x2e3b2e, roughness: 0.9 });
+            terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+            terrainMesh.rotation.x = -Math.PI / 2;
+            terrainMesh.position.y = -0.1;
+            terrainMesh.receiveShadow = true;
+            scene.add(terrainMesh);
+
+            // Mar Caribe (Noroeste) y Bahía (Sur)
+            const waterGeo = new THREE.PlaneGeometry(4000, 4000);
+            const waterMat = new THREE.MeshStandardMaterial({ color: 0x115577, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.85 });
+            waterMesh = new THREE.Mesh(waterGeo, waterMat);
+            waterMesh.rotation.x = -Math.PI / 2;
+            waterMesh.position.y = -0.4;
+            scene.add(waterMesh);
+
+            buildCastleSanFelipe();
+        }
+
+        function buildCastleSanFelipe() {
+            const castleGroup = new THREE.Group();
+            const baseGeo = new THREE.CylinderGeometry(35, 45, 12, 6);
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x8c7d6b, roughness: 0.9 });
+            const base = new THREE.Mesh(baseGeo, baseMat);
+            base.position.set(220, 6, -450);
+            base.castShadow = true; base.receiveShadow = true;
+            castleGroup.add(base);
+
+            const topGeo = new THREE.CylinderGeometry(20, 28, 10, 6);
+            const top = new THREE.Mesh(topGeo, baseMat);
+            top.position.set(220, 17, -450);
+            top.castShadow = true;
+            castleGroup.add(top);
+            scene.add(castleGroup);
+        }
+
+        // ==========================================
+        // 4. PERFIL REAL DEL MURO (TALUD + CORDÓN + PARAPETO)
+        // ==========================================
+        function buildWallSegment(p1, p2, isCoastal = false) {
+            const group = new THREE.Group();
+            const dx = p2.x - p1.x;
+            const dz = p2.z - p1.z;
+            const length = Math.sqrt(dx * dx + dz * dz);
+            const angle = Math.atan2(dx, dz);
+
+            const height = isCoastal ? 7.5 : 9.0; // APROXIMADO según rangos del JSON
+            const baseThickness = 7.5;
+            const topThickness = 5.5;
+
+            // Forma de extrusión con perfil real de escarpa en talud (1:5.5) y parapeto
+            const shape = new THREE.Shape();
+            shape.moveTo(-baseThickness / 2, 0);
+            shape.lineTo(baseThickness / 2, 0);
+            shape.lineTo(topThickness / 2 + 0.3, height); // Cordón magistral
+            shape.lineTo(topThickness / 2, height);
+            shape.lineTo(topThickness / 2 - 2.5, height); // Adarve
+            shape.lineTo(topThickness / 2 - 2.5, height + 1.6); // Parapeto exterior
+            shape.lineTo(-topThickness / 2, height + 1.6);
+            shape.lineTo(-topThickness / 2, 0);
+
+            const extrudeSettings = { steps: 1, depth: length, bevelEnabled: false };
+            const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            geom.center();
+
+            const mesh = new THREE.Mesh(geom, isCoastal ? wallBaseMaterial : wallMaterial);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            group.position.set((p1.x + p2.x) / 2, 0, (p1.z + p2.z) / 2);
+            group.rotation.y = angle;
+            group.add(mesh);
+            return group;
+        }
+
+        // ==========================================
+        // 5. GARITAS EN VOLADIZO (SENTRY BOX)
+        // ==========================================
+        function buildSentryBox() {
+            const group = new THREE.Group();
+
+            const corbelGeo = new THREE.ConeGeometry(0.8, 1.5, 8);
+            const corbel = new THREE.Mesh(corbelGeo, wallMaterial);
+            corbel.position.y = 0.75;
+            corbel.castShadow = true;
+            group.add(corbel);
+
+            const drumGeo = new THREE.CylinderGeometry(0.9, 0.8, 2.2, 12);
+            const drum = new THREE.Mesh(drumGeo, wallMaterial);
+            drum.position.y = 2.6;
+            drum.castShadow = true;
+            group.add(drum);
+
+            const domeGeo = new THREE.SphereGeometry(0.95, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+            const dome = new THREE.Mesh(domeGeo, ocreMaterial);
+            dome.position.y = 3.7;
+            group.add(dome);
+
+            const pinGeo = new THREE.CylinderGeometry(0.05, 0.1, 0.4, 6);
+            const pin = new THREE.Mesh(pinGeo, ocreMaterial);
+            pin.position.y = 4.4;
+            group.add(pin);
+
+            group.scale.set(1.2, 1.2, 1.2);
+            return group;
+        }
+
+        // ==========================================
+        // 6. TORRE DEL RELOJ Y PORTADA BARROCA
+        // ==========================================
+        function buildClockTower() {
+            const group = new THREE.Group();
+            const pos = projectCoords(10.4227, -75.5492);
+            group.position.set(pos.x, 0, pos.z);
+
+            // Portada tripartita barroca (Ancho 22m, Fondo 15m)
+            const baseGeo = new THREE.BoxGeometry(22, 8, 15);
+            const baseMesh = new THREE.Mesh(baseGeo, ocreMaterial);
+            baseMesh.position.y = 4;
+            baseMesh.castShadow = true; baseMesh.receiveShadow = true;
+            group.add(baseMesh);
+
+            // 3 túneles abovedados
+            const archGeo = new THREE.CylinderGeometry(2.2, 2.2, 16, 16, 1, false, 0, Math.PI);
+            for (let i = -6; i <= 6; i += 6) {
+                const arch = new THREE.Mesh(archGeo, wallBaseMaterial);
+                arch.rotation.z = Math.PI / 2;
+                arch.position.set(i, 4, 0);
+                group.add(arch);
+            }
+
+            // Torre Neogótica de 1888 (Altura total 30m)
+            const towerGeo = new THREE.BoxGeometry(7, 22, 7);
+            const towerMesh = new THREE.Mesh(towerGeo, ocreMaterial);
+            towerMesh.position.y = 19;
+            towerMesh.castShadow = true;
+            group.add(towerMesh);
+
+            // Esferas del reloj (4 caras)
+            const clockFaceGeo = new THREE.CircleGeometry(1.5, 32);
+            const clockMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const offsets = [
+                { x: 0, z: 3.51, rot: 0 }, { x: 0, z: -3.51, rot: Math.PI },
+                { x: -3.51, z: 0, rot: -Math.PI / 2 }, { x: 3.51, z: 0, rot: Math.PI / 2 }
+            ];
+            offsets.forEach(off => {
+                const clockFace = new THREE.Mesh(clockFaceGeo, clockMat);
+                clockFace.position.set(off.x, 23, off.z);
+                clockFace.rotation.y = off.rot;
+                group.add(clockFace);
+            });
+
+            const spireGeo = new THREE.ConeGeometry(4, 6, 8);
+            const spire = new THREE.Mesh(spireGeo, ocreMaterial);
+            spire.position.y = 33;
+            group.add(spire);
+
+            group.userData = {
+                title: "Torre del Reloj (Boca del Puente)",
+                desc: "Portada barroca tripartita del siglo XVIII (Juan de Herrera y Sotomayor). Coronada en 1888 con la torre octogonal gótico-mudéjar de Luis Felipe Jaspe Franco. Altura exacta: 30 m.",
+                source: "https://whc.unesco.org/es/list/285"
+            };
+            interactiveObjects.push(group);
+            scene.add(group);
+        }
+
+        // ==========================================
+        // 7. EL CUARTEL DE LAS BÓVEDAS (23 BÓVEDAS, 47 ARCOS)
+        // ==========================================
+        function buildBovedas() {
+            const group = new THREE.Group();
+            const pos1 = projectCoords(10.4292, -75.5482); // Santa Clara
+            const pos2 = projectCoords(10.4301, -75.5457); // Santa Catalina
+
+            const midX = (pos1.x + pos2.x) / 2;
+            const midZ = (pos1.z + pos2.z) / 2;
+
+            group.position.set(midX, 0, midZ);
+            group.rotation.y = Math.atan2(pos2.x - pos1.x, pos2.z - pos1.z);
+
+            // Bloque principal (Largo total 135m)
+            const blockGeo = new THREE.BoxGeometry(135, 8, 12);
+            const block = new THREE.Mesh(blockGeo, ocreMaterial);
+            block.position.set(0, 4, 0);
+            block.castShadow = true; block.receiveShadow = true;
+            group.add(block);
+
+            // 47 Arcos de medio punto en la galería porticada frontal
+            const archGeo = new THREE.CylinderGeometry(1.2, 1.2, 5, 16, 1, false, 0, Math.PI);
+            for (let i = -65; i <= 65; i += 2.85) {
+                const arch = new THREE.Mesh(archGeo, wallMaterial);
+                arch.rotation.z = Math.PI / 2;
+                arch.position.set(i, 3, 6.1);
+                group.add(arch);
+            }
+
+            group.userData = {
+                title: "Cuartel Militar de Las Bóvedas",
+                desc: "Construido entre 1789 y 1798 por Antonio de Arévalo. Cuenta exactamente con 23 bóvedas de medio cañón a prueba de bomba y una galería porticada frontal de 47 arcos. Longitud: 135 m.",
+                source: "https://colombia.travel/es/cartagena/conoce-las-bovedas"
+            };
+            interactiveObjects.push(group);
+            scene.add(group);
+        }
+
+        // ==========================================
+        // 8. BALUARTES Y POLÍNEA CONTINUA DEL CORDÓN
+        // ==========================================
+        function buildBastionsAndWalls() {
+            // Puntos clave del circuito amurallado real ordenados geográficamente
+            const keyPoints = [
+                { name: "Baluarte de San Francisco Javier", lat: 10.4189, lon: -75.5525, type: "pentagonal", coastal: true },
+                { name: "Baluarte de Santiago Apóstol", lat: 10.4208, lon: -75.5535, type: "pentagonal", coastal: true },
+                { name: "Baluarte de Santo Domingo", lat: 10.4239, lon: -75.5542, type: "pentagonal", coastal: true, desc: "Prototipo de baluarte regular hispánico (Cristóbal de Roda, 1614).", source: "https://fortificacionescartagena.com.co/" },
+                { name: "Baluarte de La Santa Cruz", lat: 10.4248, lon: -75.5536, type: "semibaluarte", coastal: true },
+                { name: "Baluarte de La Merced", lat: 10.4267, lon: -75.5515, type: "semibaluarte", coastal: true },
+                { name: "Baluarte de Santa Clara", lat: 10.4292, lon: -75.5482, type: "semibaluarte", coastal: true },
+                { name: "Baluarte de Santa Catalina", lat: 10.4301, lon: -75.5457, type: "pentagonal", coastal: true, desc: "Protege el istmo de El Cabrero. Área de 527 m² con tendal y aljibe.", source: "https://fortificacionescartagena.com.co/" },
+                { name: "Espigón de la Tenaza", lat: 10.4309, lon: -75.5460, type: "tenaza", coastal: true, desc: "Obra exterior de Antonio de Arévalo para quebrar el oleaje norte.", source: "https://fortificacionescartagena.com.co/" },
+                { name: "Baluarte de San Lucas", lat: 10.4290, lon: -75.5447, type: "semibaluarte", coastal: false, desc: "Área de 1,612 m² con tendal hacia el caño de Juan Angola.", source: "https://fortificacionescartagena.com.co/" },
+                { name: "Baluarte de San Pedro Mártir", lat: 10.4272, lon: -75.5441, type: "pentagonal", coastal: false }
+            ];
+
+            // Construir baluartes y cortinas en secuencia continua
+            let prevCoord = null;
+            keyPoints.forEach((pt, index) => {
+                const pos = projectCoords(pt.lat, pt.lon);
+                const group = new THREE.Group();
+                group.position.set(pos.x, 0, pos.z);
+
+                // Geometría según tipo exacto del JSON
+                let bastionGeo;
+                if (pt.type === 'pentagonal') {
+                    bastionGeo = new THREE.CylinderGeometry(18, 22, 11, 5);
+                } else if (pt.type === 'semibaluarte') {
+                    bastionGeo = new THREE.CylinderGeometry(14, 18, 10, 4);
+                } else {
+                    bastionGeo = new THREE.BoxGeometry(25, 8, 15);
+                }
+
+                const bastionMesh = new THREE.Mesh(bastionGeo, wallMaterial);
+                bastionMesh.position.y = 5.5;
+                bastionMesh.castShadow = true; bastionMesh.receiveShadow = true;
+                group.add(bastionMesh);
+
+                const sentry = buildSentryBox();
+                sentry.position.set(0, 11, 12);
+                group.add(sentry);
+
+                group.userData = {
+                    title: pt.name,
+                    desc: pt.desc || "Baluarte defensivo del sistema abaluartado colonial.",
+                    source: pt.source || "https://whc.unesco.org/es/list/285"
+                };
+                interactiveObjects.push(group);
+                scene.add(group);
+
+                // Conectar con cortina de muro continuo
+                if (prevCoord) {
+                    const wall = buildWallSegment(prevCoord, pos, pt.coastal);
+                    scene.add(wall);
+                }
+                prevCoord = pos;
+            });
+
+            // Tramo Getsemaní (Bal. San Miguel, Santa Bárbara, Santa Teresa, San José, Reducto)
+            const getsemaniPoints = [
+                { name: "Baluarte de San Miguel de Chambacú", lat: 10.4241, lon: -75.5445 },
+                { name: "Baluarte de Santa Bárbara", lat: 10.4216, lon: -75.5435 },
+                { name: "Baluarte de Santa Teresa", lat: 10.4202, lon: -75.5438, desc: "Construido en 1631 con característico flanco curvo frente a la Media Luna.", source: "https://fortificacionescartagena.com.co/" },
+                { name: "Baluarte de San José", lat: 10.4188, lon: -75.5453 },
+                { name: "Baluarte del Reducto", lat: 10.4185, lon: -75.5478 }
+            ];
+
+            let prevGetseCoord = null;
+            getsemaniPoints.forEach(pt => {
+                const pos = projectCoords(pt.lat, pt.lon);
+                const group = new THREE.Group();
+                group.position.set(pos.x, 0, pos.z);
+
+                const geo = new THREE.CylinderGeometry(14, 17, 9, 4);
+                const mesh = new THREE.Mesh(geo, wallMaterial);
+                mesh.position.y = 4.5;
+                mesh.castShadow = true; mesh.receiveShadow = true;
+                group.add(mesh);
+
+                const sentry = buildSentryBox();
+                sentry.position.set(0, 9.5, 10);
+                group.add(sentry);
+
+                group.userData = {
+                    title: pt.name,
+                    desc: pt.desc || "Baluarte del arrabal fortificado de Getsemaní (Francisco de Murga, 1631).",
+                    source: pt.source || "https://whc.unesco.org/es/list/285"
+                };
+                interactiveObjects.push(group);
+                scene.add(group);
+
+                if (prevGetseCoord) {
+                    const wall = buildWallSegment(prevGetseCoord, pos, false);
+                    scene.add(wall);
+                }
+                prevGetseCoord = pos;
+            });
+
+            // Tramo de La Matuna (Demolido / Línea punteada en el suelo)
+            const matunaStart = projectCoords(10.4272, -75.5441); // San Pedro Mártir
+            const matunaEnd = projectCoords(10.4227, -75.5492);   // Torre del Reloj
+
+            const points = [
+                new THREE.Vector3(matunaStart.x, 0.2, matunaStart.z),
+                new THREE.Vector3(matunaEnd.x, 0.2, matunaEnd.z)
+            ];
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+            const lineMat = new THREE.LineDashedMaterial({ color: 0xff4444, dashSize: 3, gapSize: 2, linewidth: 2 });
+            const dashedLine = new THREE.Line(lineGeo, lineMat);
+            dashedLine.computeLineDistances();
+            scene.add(dashedLine);
+        }
+
+        // ==========================================
+        // 9. CONTROLES Y UI
+        // ==========================================
+        function setupUI() {
+            const timeSlider = document.getElementById('time-slider');
+            timeSlider.addEventListener('input', (e) => {
+                const hour = parseFloat(e.target.value);
+                const angle = (hour / 24) * Math.PI * 2 - Math.PI / 2;
+
+                sunLight.position.x = Math.cos(angle) * 350;
+                sunLight.position.y = Math.sin(angle) * 350;
+
+                if (hour < 6 || hour > 18) {
+                    scene.background.set(0x05070a);
+                    scene.fog.color.set(0x05070a);
+                    hemiLight.intensity = 0.1;
+                    sunLight.intensity = 0.2;
+                } else {
+                    scene.background.set(0x111622);
+                    scene.fog.color.set(0x111622);
+                    hemiLight.intensity = 0.4;
+                    sunLight.intensity = 1.2;
+                }
+            });
+
+            const modeBtn = document.getElementById('mode-btn');
+            modeBtn.addEventListener('click', () => {
+                isFirstPerson = !isFirstPerson;
+                if (isFirstPerson) {
+                    controls.enabled = false;
+                    camera.position.set(0, 9, 20);
+                    camera.rotation.set(0, 0, 0);
+                    document.getElementById('crosshair').style.display = 'block';
+                    modeBtn.textContent = "Modo Órbita (Libre)";
+                } else {
+                    controls.enabled = true;
+                    document.getElementById('crosshair').style.display = 'none';
+                    modeBtn.textContent = "Modo Primera Persona (WASD)";
+                }
+            });
+
+            document.getElementById('close-info').addEventListener('click', () => {
+                document.getElementById('info-panel').style.display = 'none';
+            });
+
+            window.addEventListener('click', (e) => {
+                if (isFirstPerson) return;
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(interactiveObjects, true);
+
+                if (intersects.length > 0) {
+                    let obj = intersects[0].object;
+                    while (obj && !obj.userData.title) { obj = obj.parent; }
+                    if (obj && obj.userData.title) {
+                        document.getElementById('info-title').textContent = obj.userData.title;
+                        document.getElementById('info-desc').textContent = obj.userData.desc;
+                        document.getElementById('info-source').href = obj.userData.source;
+                        document.getElementById('info-source').textContent = obj.userData.source;
+                        document.getElementById('info-panel').style.display = 'block';
+                    }
+                }
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (!isFirstPerson) return;
+                switch (e.code) {
+                    case 'KeyW': moveForward = true; break;
+                    case 'KeyS': moveBackward = true; break;
+                    case 'KeyA': moveLeft = true; break;
+                    case 'KeyD': moveRight = true; break;
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (!isFirstPerson) return;
+                switch (e.code) {
+                    case 'KeyW': moveForward = false; break;
+                    case 'KeyS': moveBackward = false; break;
+                    case 'KeyA': moveLeft = false; break;
+                    case 'KeyD': moveRight = false; break;
+                }
+            });
+        }
+
+        // ==========================================
+        // 10. BUCLE PRINCIPAL Y ANIMACIÓN (60 FPS)
+        // ==========================================
+        function init() {
+            setupEnvironment();
+            buildClockTower();
+            buildBovedas();
+            buildBastionsAndWalls();
+            setupUI();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        let frameCount = 0;
+        let lastTime = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+            const delta = (time - prevTime) / 1000;
+
+            frameCount++;
+            if (time - lastTime >= 1000) {
+                document.getElementById('fps').textContent = `FPS: ${Math.round((frameCount * 1000) / (time - lastTime))}`;
+                frameCount = 0;
+                lastTime = time;
+            }
+
+            if (isFirstPerson) {
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                if (moveForward || moveBackward) velocity.z -= direction.z * 40.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 40.0 * delta;
+
+                camera.translateX(-velocity.x * delta);
+                camera.translateZ(velocity.z * delta);
+                camera.position.y = 9;
+            } else {
+                controls.update();
+            }
+
+            renderer.render(scene, camera);
+            prevTime = time;
+        }
+
+        init();
+        animate();
+    </script>
+</body>
+
+</html>

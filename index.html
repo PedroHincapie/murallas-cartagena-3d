@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Murallas de Cartagena 3D</title>
+<style>
+:root{--bg:#f6f1e7;--tx:#2a241c;--mut:#6f6455;--acc:#b9822a;--card:#fffaf1;--line:#e3d8c4}
+@media (prefers-color-scheme:dark){:root{--bg:#14110d;--tx:#f3ece0;--mut:#b9ad98;--acc:#d9a441;--card:#1e1a15;--line:#3a3127}}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:0 auto;padding:56px 16px}
+h1{font:600 clamp(28px,5vw,40px)/1.15 Georgia,serif;margin:0 0 12px}
+p{color:var(--mut);margin:0 0 28px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+a.card{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;color:inherit;text-decoration:none;transition:border-color .15s}
+a.card:hover{border-color:var(--acc)}
+a.card b{display:block;font:600 20px Georgia,serif;margin-bottom:6px}
+a.card span{color:var(--mut);font-size:14px}
+small{display:block;margin-top:32px;color:var(--mut)}
+</style></head><body><main>
+<h1>Murallas de Cartagena de Indias en 3D</h1>
+<p>Mismo contexto (un JSON histórico verificado) y mismo prompt para dos modelos de IA. Cada réplica es un único HTML con Three.js.</p>
+<div class="grid">
+<a class="card" href="claude/"><b>Claude Opus 5.5</b><span>Réplica con perfil real de muralla, Las Bóvedas, Torre del Reloj, ciclo día/noche y recorrido por el adarve.</span></a>
+<a class="card" href="gemini/"><b>Gemini 4 Argon</b><span>Réplica generada con el mismo prompt.</span></a>
+</div>
+<small>Proyecto de Pedro Hincapié García. Se recomienda abrir en computador.</small>
+</main></body></html>

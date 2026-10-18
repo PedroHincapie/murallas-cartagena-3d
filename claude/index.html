@@ -1,0 +1,2437 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Murallas de Cartagena 3D</title>
+<style>
+  :root{--bg:rgba(18,16,14,.72);--line:rgba(255,240,215,.14);--tx:#f3ece0;--mut:#b9ad98;--acc:#d9a441}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0b0d10;color:var(--tx);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  #app{position:fixed;inset:0}
+  .card{background:var(--bg);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  #ui{position:fixed;left:14px;top:14px;display:flex;flex-direction:column;gap:10px;width:290px;z-index:5}
+  #ui h1{font:600 16px/1.2 Georgia,"Times New Roman",serif;margin:0 0 4px;letter-spacing:.2px}
+  #ui p{margin:0;color:var(--mut);font-size:12px}
+  .lbl-row{display:flex;justify-content:space-between;align-items:baseline;color:var(--mut);font-size:12px;margin-bottom:4px}
+  .lbl-row b{color:var(--tx);font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--acc)}
+  .row{display:flex;gap:6px;margin:10px 0 8px}
+  button,select{flex:1;background:rgba(255,255,255,.06);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;cursor:pointer}
+  button.on{background:var(--acc);color:#1b140a;border-color:var(--acc);font-weight:600}
+  select{width:100%}
+  select option{background:#1d1a16}
+  .chk{display:flex;gap:6px;align-items:center;color:var(--mut);font-size:12px;margin-top:8px;cursor:pointer}
+  .chks{display:flex;gap:14px}
+  #fps{position:absolute;right:12px;bottom:10px;color:var(--mut);font-size:11px;font-variant-numeric:tabular-nums}
+  #ctrl{position:relative}
+  #info{position:fixed;right:14px;top:14px;width:360px;max-height:calc(100% - 28px);overflow:auto;z-index:6}
+  #info h2{font:600 17px/1.25 Georgia,serif;margin:0 26px 6px 0}
+  #info .yr{color:var(--acc);font-weight:600;margin-bottom:8px}
+  #info dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:8px 0;font-size:12px}
+  #info dt{color:var(--mut)}
+  #info dd{margin:0}
+  #info .tag{display:inline-block;font-size:10px;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:1px;border:1px solid var(--line);color:var(--mut)}
+  #info .tag.ex{color:#9fd39b;border-color:#3d6b3a}
+  #info .tag.ap{color:#e8c06a;border-color:#6b5524}
+  #info p{margin:8px 0;color:#e6dccb}
+  #info a{color:#e9c27a;word-break:break-all;font-size:11.5px}
+  #info .x{position:absolute;right:10px;top:8px;background:none;border:0;color:var(--mut);font-size:20px;cursor:pointer;flex:none;padding:0 4px}
+  .lbl{pointer-events:auto;cursor:pointer;background:rgba(20,17,13,.78);color:#f6efe2;border:1px solid rgba(217,164,65,.55);padding:2px 7px;border-radius:999px;font:600 11px/1.3 ui-sans-serif,system-ui,sans-serif;white-space:nowrap;transition:background .15s}
+  .lbl:hover{background:#d9a441;color:#1b140a}
+  .lbl.gate{border-color:rgba(242,239,233,.6)}
+  .lbl.gone{border-style:dashed;border-color:#d0675a;color:#ffd9d2}
+  #walkHint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:5;text-align:center}
+  #cross{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,255,255,.7);z-index:5;display:none}
+  #loading{position:fixed;inset:0;display:grid;place-items:center;z-index:20;background:#0b0d10;color:var(--mut);font:14px Georgia,serif;letter-spacing:.3px}
+  @media (max-width:700px){#ui{width:calc(100% - 28px)}#info{left:14px;right:14px;width:auto;top:auto;bottom:14px;max-height:50%}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="loading">Generando la réplica de las murallas…</div>
+<div id="ui">
+  <div class="card">
+    <h1>Murallas de Cartagena de Indias</h1>
+    <p>Réplica 3D · 1 unidad = 1 metro · datos: JSON corregido (fuente única)</p>
+  </div>
+  <div class="card" id="ctrl">
+    <div class="lbl-row"><span>Hora del día</span><b id="hourLbl"></b></div>
+    <input type="range" id="hour" min="0" max="24" step="0.05" value="17.35">
+    <div class="row"><button id="bOrbit" class="on">Órbita</button><button id="bWalk">Recorrido</button></div>
+    <select id="goto">
+      <option value="">Ir a…</option>
+      <option value="general">Vista general</option>
+      <option value="reloj">Torre del Reloj</option>
+      <option value="bovedas">Las Bóvedas</option>
+      <option value="catalina">Santa Catalina y la Tenaza</option>
+      <option value="lucas">San Lucas</option>
+      <option value="domingo">Baluarte de Santo Domingo</option>
+      <option value="getsemani">Getsemaní</option>
+      <option value="matuna">Tramo demolido de La Matuna</option>
+      <option value="castillo">Castillo San Felipe (fondo)</option>
+    </select>
+    <div class="chks">
+      <label class="chk"><input type="checkbox" id="cLabels" checked> Etiquetas</label>
+      <label class="chk"><input type="checkbox" id="cShadows" checked> Sombras</label>
+    </div>
+    <div id="fps"></div>
+  </div>
+</div>
+<aside id="info" class="card" hidden></aside>
+<div id="walkHint" class="card" hidden>Clic en la escena para caminar · <b>WASD</b> mover · <b>Shift</b> correr · <b>Esc</b> salir</div>
+<div id="cross"></div>
+
+<script type="application/json" id="fuente">{
+  "resumen_historico": "El cordón amurallado del Centro Histórico de Cartagena de Indias constituye la muestra más depurada y completa de la ingeniería militar abaluartada hispánica (escuela italiana y franco-española) adaptada al trópico americano. Su génesis responde al ataque del corsario Francis Drake en 1586, tras el cual Felipe II envió al ingeniero Bautista Antonelli para diseñar un recinto fortificado permanente (1595). Ejecutado por Cristóbal de Roda (desde 1614) y Francisco de Murga (cerramiento del arrabal de Getsemaní en 1631), el circuito sufrió destrucciones por temporales marinos en el siglo XVII y por el asedio francés del Barón de Pointis en 1697. En el siglo XVIII fue reconstruido y perfeccionado por Juan de Herrera y Sotomayor (Muralla de la Marina, Puerta de la Boca del Puente y terraplenado de baluartes como Santa Teresa en 1732), y culminado por el brigadier Antonio de Arévalo con la Escollera de la Marina, el Espigón de la Tenaza y el Cuartel de Las Bóvedas (1789-1798). Entre 1893 y 1924 sufrió demoliciones parciales por expansión urbana e higienismo en el sector de La Matuna (entre el Baluarte de San Pedro Mártir y la Puerta del Reloj) y en la Puerta de la Media Luna (Getsemaní), conservando hoy el recinto declarado Patrimonio Mundial por la UNESCO en 1984 (Ref. 285).",
+  "cronologia": [
+    {
+      "anio": 1586,
+      "hito": "Toma y saqueo de Cartagena de Indias por Sir Francis Drake; Felipe II ordena proyectar el sistema de fortificación permanente.",
+      "fuente": "https://fortificacionescartagena.com.co/"
+    },
+    {
+      "anio": 1595,
+      "hito": "Bautista Antonelli presenta el primer plan general de amurallamiento abaluartado para rodear el casco urbano de Cartagena.",
+      "fuente": "https://whc.unesco.org/es/list/285"
+    },
+    {
+      "anio": 1614,
+      "hito": "Cristóbal de Roda inicia la construcción en firme del Baluarte de Santo Domingo (antiguo San Felipe), piedra angular del frente marino.",
+      "fuente": "https://fortificacionescartagena.com.co/"
+    },
+    {
+      "anio": 1631,
+      "hito": "Francisco de Murga concluye el cerramiento fortificado del arrabal de Getsemaní (incluyendo los baluartes de Santa Bárbara y Santa Teresa) y la Puerta de la Media Luna.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/"
+    },
+    {
+      "anio": 1697,
+      "hito": "Ataque francés del Barón de Pointis y Ducasse, causando brechas en los baluartes de Santo Domingo, Santa Catalina y Santa Teresa.",
+      "fuente": "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-teresa/"
+    },
+    {
+      "anio": 1714,
+      "hito": "Juan de Herrera y Sotomayor inicia la reconstrucción de las cortinas destruidas por el mar de leva, remodela la Puerta de la Boca del Puente y terraplena baluartes como Santa Teresa (1732).",
+      "fuente": "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-teresa/"
+    },
+    {
+      "anio": 1741,
+      "hito": "Defensa exitosa ante el asedio británico de Edward Vernon; los ingenieros Juan Bautista Mac-Evan y Carlos Desnaux proyectan y construyen el Fuerte de San Sebastián del Pastelillo (1741-1744) en la bahía interior.",
+      "fuente": "https://fortificacionescartagena.com.co/es/destination/san-sebastian-del-pastelillo/"
+    },
+    {
+      "anio": 1765,
+      "hito": "Antonio de Arévalo inicia la construcción de la Escollera de la Marina y el Espigón de la Tenaza (concluidos hacia 1771) para frenar la socavación marina.",
+      "fuente": "https://fortificacionescartagena.com.co/"
+    },
+    {
+      "anio": 1789,
+      "hito": "Antonio de Arévalo da inicio a la construcción del Cuartel de Las Bóvedas (finalizado entre 1796 y 1798), cerrando el ciclo constructivo colonial.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "anio": 1888,
+      "hito": "Inauguración de la torre octogonal neogótica (Torre del Reloj) sobre la colonial Puerta de la Boca del Puente, obra de Luis Felipe Jaspe Franco.",
+      "fuente": "https://whc.unesco.org/es/list/285"
+    },
+    {
+      "anio": 1905,
+      "hito": "Apertura de la Puerta de la Paz y la Concordia e intensificación de las demoliciones higienistas del sector de La Matuna (entre San Pedro Mártir y la Puerta del Reloj).",
+      "fuente": "https://pemp.cartagena.gov.co/sites/default/files/2023-12/PV%20Cartagena_Informe%203.pdf"
+    },
+    {
+      "anio": 1984,
+      "hito": "Inscripción del conjunto 'Puerto, fortalezas y conjunto monumental de Cartagena' en la Lista del Patrimonio Mundial de la UNESCO.",
+      "fuente": "https://whc.unesco.org/es/list/285"
+    }
+  ],
+  "ingenieros": [
+    {
+      "nombre": "Bautista Antonelli (Giovanni Battista Antonelli)",
+      "periodo_actuacion": "1586 - 1595",
+      "aporte": "Trazado original del recinto amurallado según la escuela abaluartada italiana; elección de los puntos nodales en La Caleta y Bocagrande.",
+      "fuente": "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-catalina/"
+    },
+    {
+      "nombre": "Cristóbal de Roda Antonelli",
+      "periodo_actuacion": "1608 - 1631",
+      "aporte": "Sobrino de Bautista Antonelli; ejecutó los baluartes de Santo Domingo, Santa Catalina y San Lucas, replanteando la traza frente al mar Caribe.",
+      "fuente": "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-catalina/"
+    },
+    {
+      "nombre": "Francisco de Murga",
+      "periodo_actuacion": "1629 - 1633",
+      "aporte": "Gobernador y maestre de campo; fortificó el arrabal de Getsemaní con sus baluartes (incluyendo Santa Bárbara y Santa Teresa en 1631) y la Puerta de la Media Luna.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/"
+    },
+    {
+      "nombre": "Juan Bautista Antonelli 'El Mozo' (hijo de Bautista Antonelli)",
+      "periodo_actuacion": "1615 - 1640",
+      "aporte": "VERIFICACIÓN HISTÓRICA: Persona distinta a Juan Bautista Mac-Evan (quien actuó un siglo después, en el XVIII). Colaboró con su primo Cristóbal de Roda en las fortificaciones del Caribe y de la bahía de Cartagena en la primera mitad del siglo XVII. Eliminada toda confusión nominal entre ambos.",
+      "fuente": "https://whc.unesco.org/es/list/285"
+    },
+    {
+      "nombre": "Juan de Herrera y Sotomayor",
+      "periodo_actuacion": "1708 - 1732",
+      "aporte": "Ingeniero director y fundador de la Academia Militar de Matemáticas en Cartagena; reconstruyó la Muralla de la Marina, diseñó la portada barroca de la Boca del Puente y restauró y terraplenó el Baluarte de Santa Teresa en 1732 tras los daños de Pointis.",
+      "fuente": "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-teresa/"
+    },
+    {
+      "nombre": "Juan Bautista Mac-Evan y Carlos Desnaux (Carlos Suillars de Desnaux)",
+      "periodo_actuacion": "1741 - 1744",
+      "aporte": "VERIFICACIÓN HISTÓRICA: Ingenieros militares del siglo XVIII (bajo órdenes del virrey Sebastián de Eslava). Carlos Desnaux fue ingeniero militar y comandante del Castillo de San Luis de Bocachica durante el ataque de Vernon (1741), y junto al ingeniero director Juan Bautista Mac-Evan proyectó y construyó el Fuerte de San Sebastián del Pastelillo (1741-1744) en la isla de Manga para defender la bahía interior.",
+      "fuente": "https://fortificacionescartagena.com.co/es/destination/san-sebastian-del-pastelillo/"
+    },
+    {
+      "nombre": "Antonio de Arévalo",
+      "periodo_actuacion": "1742 - 1800",
+      "aporte": "Culminó el sistema defensivo de Cartagena: diseñó el Espigón de la Tenaza, la Escollera de la Marina y el Cuartel de Las Bóvedas (1789-1798).",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    }
+  ],
+  "trazado": {
+    "estado_acceso_osm": "AVISO TÉCNICO: No tengo acceso directo a la API de OpenStreetMap (Overpass API / base de datos vectorial cruda de OSM) para descargar la secuencia de nodos de la polilínea del way 1031619550 y los ways adyacentes con etiqueta barrier=city_wall. Siguiendo estrictamente tu instrucción ('Si no puedes acceder a OSM, dilo y no estimes'), NO se estiman ni inventan los vértices de la polilínea con 6 decimales y se declara 'polilinea_osm' en null. El único centroide verificado en fuentes públicas indexadas para el way 1031619550 (Baluarte de Santa Catalina) es [10.43082, -75.54572] (5 decimales, vía Mapcarta).",
+    "polilinea_osm": null,
+    "longitud_total_m": {
+      "valor": 11000,
+      "clasificacion": "APROXIMADO",
+      "fuente": "https://colombia.travel/es/cartagena/las-murallas-de-cartagena"
+    },
+    "longitud_centro_m": {
+      "valor": 3426,
+      "clasificacion": "EXACTO",
+      "fuente": "https://pemp.cartagena.gov.co/sites/default/files/2023-12/PV%20Cartagena_Informe%203.pdf"
+    },
+    "orientacion": "Frente Noroeste y Norte (Mar Caribe / Avenida Santander): desde el Baluarte de San Francisco Javier, pasando por Santiago Apóstol, Santo Domingo, La Santa Cruz, La Merced y Santa Clara, hasta Santa Catalina y el Espigón de la Tenaza. Frente Noreste y Este (Caño de Juan Angola y El Cabrero): desde el Baluarte de Santa Catalina y Las Bóvedas, pasando por San Lucas hasta San Pedro Mártir. Tramo Sur-Sureste del núcleo principal (Sector La Matuna): tramo DESAPARECIDO/DEMOLIDO entre el Baluarte de San Pedro Mártir y la Puerta del Reloj. Frente Sur-Suroeste (Bahía de las Ánimas): desde la Puerta del Reloj, pasando por San Juan Evangelista y San Ignacio de Loyola hasta San Francisco Javier. Frente de Getsemaní: desde el Baluarte de San Miguel de Chambacú al norte, bajando por el este (frente al Castillo de San Felipe / Avenida Pedregal) con los baluartes de Santa Bárbara, Santa Teresa y San José, hasta el Baluarte del Reducto al sur sobre la Bahía de las Ánimas.",
+    "puntos_en_orden": [
+      {
+        "nombre": "Baluarte de San Pedro Mártir",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Puerta de la Paz y la Concordia",
+        "tipo": "puerta",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Baluarte de San Lucas",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Cortina entre San Lucas y Santa Catalina (Puerta de Santa Catalina)",
+        "tipo": "cortina",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Baluarte de Santa Catalina",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": "1031619550",
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Centroide documentado en Mapcarta para way 1031619550: lat 10.43082, lon -75.54572 (5 decimales). Polilínea completa de nodos de OSM no accesible sin Overpass API.",
+        "fuente": "https://mapcarta.com/es/W1031619550"
+      },
+      {
+        "nombre": "Espigón de la Tenaza",
+        "tipo": "tenaza",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Cuartel Militar de Las Bóvedas",
+        "tipo": "bovedas",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Baluarte de Santa Clara",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Baluarte de La Merced",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Plataforma de Ballestas",
+        "tipo": "cortina",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Baluarte de La Santa Cruz",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Baluarte de Santo Domingo",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Cortina entre Santo Domingo y Santiago Apóstol (Puerta de Santo Domingo)",
+        "tipo": "cortina",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Baluarte de Santiago Apóstol",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Cortina entre Santiago Apóstol y San Francisco Javier",
+        "tipo": "cortina",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Baluarte de San Francisco Javier",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Baluarte de San Ignacio de Loyola",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Baluarte de San Juan Evangelista",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Puerta del Reloj (Boca del Puente)",
+        "tipo": "puerta",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Sin acceso a los nodos crudos de OSM; no se estiman coordenadas."
+      },
+      {
+        "nombre": "Tramo de La Matuna (Cortinas y baluartes de San Pedro Apóstol, San Pablo, San Andrés y Santa Catalinita entre la Puerta del Reloj y el Baluarte de San Pedro Mártir)",
+        "tipo": "cortina",
+        "estado": "desaparecido",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Tramo demolido entre finales del siglo XIX y principios del XX (1880-1924) para expansión urbana y saneamiento sobre el antiguo Caño de San Anastasio.",
+        "fuente": "https://pemp.cartagena.gov.co/sites/default/files/2023-12/PV%20Cartagena_Informe%203.pdf"
+      },
+      {
+        "nombre": "Baluarte de San Miguel de Chambacú (Getsemaní)",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Ubicado contiguo al Parque Puerto de Chambacú, con vista a la India Catalina y al Castillo de San Felipe. Sin acceso a nodos crudos de OSM.",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/"
+      },
+      {
+        "nombre": "Baluarte de Santa Bárbara (Getsemaní)",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Ubicado sobre la Avenida del Pedregal; flanqueaba por la derecha la desaparecida Puerta de la Media Luna. Sin acceso a nodos crudos de OSM.",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/"
+      },
+      {
+        "nombre": "Puerta de la Media Luna (Getsemaní)",
+        "tipo": "puerta",
+        "estado": "desaparecido",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Ubicada originalmente entre los baluartes de Santa Bárbara y Santa Teresa; demolida en 1893.",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/"
+      },
+      {
+        "nombre": "Baluarte de Santa Teresa (Getsemaní)",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "VERIFICACIÓN DE UBICACIÓN: Ubicado en Getsemaní (Calle del Guerrero con Avenida del Pedregal), justo a la izquierda (sur) de donde se emplazaba la Puerta de la Media Luna, entre el Baluarte de Santa Bárbara (al norte) y el Baluarte de San José (al sur). Sin acceso a nodos crudos de OSM.",
+        "fuente": "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-teresa/"
+      },
+      {
+        "nombre": "Baluarte de San José (Getsemaní)",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Ubicado sobre la Laguna de San Lázaro, con rampa sobre la Avenida del Pedregal cerca al Callejón Angosto. Sin acceso a nodos crudos de OSM.",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/"
+      },
+      {
+        "nombre": "Baluarte del Reducto (Getsemaní)",
+        "tipo": "baluarte",
+        "estado": "conservado",
+        "osm_way_id": null,
+        "coordenadas_osm_6_decimales": null,
+        "nota": "Extremo sur de Getsemaní frente a la Bahía de las Ánimas. Sin acceso a nodos crudos de OSM."
+      }
+    ]
+  },
+  "baluartes": [
+    {
+      "nombre": "Baluarte de Santo Domingo (originalmente San Felipe)",
+      "forma": "pentagonal",
+      "area_m2": {
+        "valor": 2500,
+        "clasificacion": "APROXIMADO",
+        "nota": "Estimado por huella en planta del baluarte magistral del frente marino."
+      },
+      "altura_m": {
+        "valor": 11.0,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "10.0 - 12.0 m",
+        "nota": "Valor de trabajo para modelado 3D de la escarpa + parapeto en baluartes principales."
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 55.0,
+          "clasificacion": "APROXIMADO",
+          "rango_referencia": "50.0 - 60.0 m"
+        },
+        "longitud_flancos_m": {
+          "valor": 22.0,
+          "clasificacion": "APROXIMADO",
+          "rango_referencia": "18.0 - 25.0 m (incluyendo orejones rectos)"
+        },
+        "ancho_gola_m": {
+          "valor": 42.0,
+          "clasificacion": "APROXIMADO",
+          "rango_referencia": "38.0 - 45.0 m"
+        }
+      },
+      "detalles": "Prototipo del baluarte regular hispánico en Cartagena (Cristóbal de Roda, 1614). Posee 2 caras en ángulo saliente, 2 flancos con orejones rectos, gola con gran rampa empedrada, aljibe subterráneo con brocal, casamatas, garita esquinera, banqueta y parapeto con troneras abocinadas.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Baluarte de Santiago Apóstol",
+      "forma": "pentagonal",
+      "area_m2": {
+        "valor": 858,
+        "clasificacion": "EXACTO",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+      },
+      "altura_m": {
+        "valor": 9.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "9.0 - 10.5 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 32.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado geométricamente a partir de la superficie oficial de 858 m² en planta pentagonal."
+        },
+        "longitud_flancos_m": {
+          "valor": 14.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado geométricamente de la superficie oficial de 858 m²."
+        },
+        "ancho_gola_m": {
+          "valor": 28.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado geométricamente de la superficie oficial de 858 m²."
+        }
+      },
+      "detalles": "Capacidad oficial: 300 personas. Rampa de acceso frente a la Calle Baloco, garita en el ángulo saliente hacia el mar Caribe y troneras en parapeto.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Baluarte de San Francisco Javier",
+      "forma": "pentagonal",
+      "area_m2": {
+        "valor": 1131,
+        "clasificacion": "EXACTO",
+        "nota": "Área oficial documentada conjuntamente con su cortina adyacente.",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+      },
+      "altura_m": {
+        "valor": 10.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "10.0 - 11.5 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 38.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado descontando el tramo de cortina de los 1.131 m² totales."
+        },
+        "longitud_flancos_m": {
+          "valor": 16.0,
+          "clasificacion": "DERIVADO"
+        },
+        "ancho_gola_m": {
+          "valor": 32.0,
+          "clasificacion": "DERIVADO"
+        }
+      },
+      "detalles": "Posee garita esquinera de tambor circular y cúpula media naranja, aljibe central en la explanada, troneras y rampa en gola.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Baluarte de San Ignacio de Loyola",
+      "forma": "pentagonal",
+      "area_m2": {
+        "valor": 1782,
+        "clasificacion": "EXACTO",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+      },
+      "altura_m": {
+        "valor": 10.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "10.0 - 11.5 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 45.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado geométricamente a partir del área oficial de 1.782 m²."
+        },
+        "longitud_flancos_m": {
+          "valor": 20.0,
+          "clasificacion": "DERIVADO"
+        },
+        "ancho_gola_m": {
+          "valor": 38.0,
+          "clasificacion": "DERIVADO"
+        }
+      },
+      "detalles": "Capacidad oficial: 400 personas. Defendía la Bahía de las Ánimas y el muelle; cuenta con garita hacia la bahía y troneras.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Baluarte de San Juan Evangelista",
+      "forma": "semibaluarte",
+      "area_m2": {
+        "valor": 597,
+        "clasificacion": "EXACTO",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+      },
+      "altura_m": {
+        "valor": 8.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "8.0 - 9.0 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 26.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado a partir de la superficie oficial de 597 m²."
+        },
+        "longitud_flancos_m": {
+          "valor": 12.0,
+          "clasificacion": "DERIVADO"
+        },
+        "ancho_gola_m": {
+          "valor": 22.0,
+          "clasificacion": "DERIVADO"
+        }
+      },
+      "detalles": "Capacidad oficial: 200 personas. Flanqueaba la Boca del Puente desde la Plaza de los Coches.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Baluarte de La Santa Cruz",
+      "forma": "semibaluarte",
+      "area_m2": {
+        "valor": 846,
+        "clasificacion": "EXACTO",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+      },
+      "altura_m": {
+        "valor": 7.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "6.5 - 8.5 m (frente marino bajo)"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 32.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado a partir de la superficie oficial de 846 m²."
+        },
+        "longitud_flancos_m": {
+          "valor": 13.0,
+          "clasificacion": "DERIVADO"
+        },
+        "ancho_gola_m": {
+          "valor": 27.0,
+          "clasificacion": "DERIVADO"
+        }
+      },
+      "detalles": "Capacidad oficial: 200 personas. Situado entre Santo Domingo y la Plataforma de Ballestas; rampa sobre la Playa de la Artillería.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Baluarte de La Merced",
+      "forma": "semibaluarte",
+      "area_m2": {
+        "valor": 1218,
+        "clasificacion": "EXACTO",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+      },
+      "altura_m": {
+        "valor": 6.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "6.0 - 7.5 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 38.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado a partir de la superficie oficial de 1.218 m²."
+        },
+        "longitud_flancos_m": {
+          "valor": 15.0,
+          "clasificacion": "DERIVADO"
+        },
+        "ancho_gola_m": {
+          "valor": 34.0,
+          "clasificacion": "DERIVADO"
+        }
+      },
+      "detalles": "Capacidad oficial: 200 personas. Clasificado por la ETCAR como 'baluarte vacío' (plaza a nivel del suelo tras la reconstrucción de Herrera y Sotomayor por los temporales del mar de leva).",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Baluarte de Santa Clara",
+      "forma": "semibaluarte",
+      "area_m2": {
+        "valor": 2241,
+        "clasificacion": "EXACTO",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+      },
+      "altura_m": {
+        "valor": 9.0,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "8.0 - 10.0 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 52.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado a partir de la superficie oficial de 2.241 m²."
+        },
+        "longitud_flancos_m": {
+          "valor": 21.0,
+          "clasificacion": "DERIVADO"
+        },
+        "ancho_gola_m": {
+          "valor": 44.0,
+          "clasificacion": "DERIVADO"
+        }
+      },
+      "detalles": "Capacidad oficial: 200 personas. Reconstruido en 1742; cuenta con garita hacia el mar del Norte, rampa frente a la Calle del Torno y troneras.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Baluarte de Santa Catalina",
+      "forma": "pentagonal",
+      "area_m2": {
+        "valor": 527,
+        "clasificacion": "EXACTO",
+        "nota": "Área útil de plataforma reservable según ETCAR (sin contar el área de la rampa, el tendal ni el Espigón de la Tenaza).",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+      },
+      "altura_m": {
+        "valor": 11.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "10.0 - 12.0 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 48.0,
+          "clasificacion": "APROXIMADO",
+          "nota": "Longitud exterior total de cara de la escarpa sobre el istmo de El Cabrero y La Tenaza."
+        },
+        "longitud_flancos_m": {
+          "valor": 19.0,
+          "clasificacion": "APROXIMADO"
+        },
+        "ancho_gola_m": {
+          "valor": 36.0,
+          "clasificacion": "APROXIMADO"
+        }
+      },
+      "detalles": "Capacidad oficial: 300 personas. Defiende el istmo de El Cabrero; posee garita en el ángulo saliente, casamatas/polvorín abovedado inferior, aljibe, tendal colonial reconstruido y troneras.",
+      "fuente": "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-catalina/"
+    },
+    {
+      "nombre": "Espigón de la Tenaza",
+      "forma": "tenaza",
+      "area_m2": {
+        "valor": 650,
+        "clasificacion": "APROXIMADO"
+      },
+      "altura_m": {
+        "valor": 7.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "6.5 - 8.5 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 65.0,
+          "clasificacion": "APROXIMADO",
+          "nota": "Espigón alargado que se adentra en la rompiente marina."
+        },
+        "longitud_flancos_m": {
+          "valor": 12.0,
+          "clasificacion": "APROXIMADO"
+        },
+        "ancho_gola_m": {
+          "valor": 14.0,
+          "clasificacion": "APROXIMADO"
+        }
+      },
+      "detalles": "Obra exterior proyectada por Antonio de Arévalo al norte de Santa Catalina para quebrar el oleaje y evitar el flanqueo por la playa; garita en su vértice marino.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/"
+    },
+    {
+      "nombre": "Baluarte de San Lucas",
+      "forma": "semibaluarte",
+      "area_m2": {
+        "valor": 1612,
+        "clasificacion": "EXACTO",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+      },
+      "altura_m": {
+        "valor": 11.0,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "10.0 - 12.0 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 44.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado geométricamente a partir del área oficial de 1.612 m²."
+        },
+        "longitud_flancos_m": {
+          "valor": 18.0,
+          "clasificacion": "DERIVADO"
+        },
+        "ancho_gola_m": {
+          "valor": 36.0,
+          "clasificacion": "DERIVADO"
+        }
+      },
+      "detalles": "Capacidad oficial: 500 personas. Cuenta con dos tendales, garita y troneras orientadas hacia El Cabrero y el caño de Juan Angola.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Baluarte de San Pedro Mártir",
+      "forma": "pentagonal",
+      "area_m2": {
+        "valor": 718,
+        "clasificacion": "EXACTO",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+      },
+      "altura_m": {
+        "valor": 9.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "9.0 - 10.5 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 29.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado geométricamente a partir del área oficial de 718 m²."
+        },
+        "longitud_flancos_m": {
+          "valor": 13.0,
+          "clasificacion": "DERIVADO"
+        },
+        "ancho_gola_m": {
+          "valor": 25.0,
+          "clasificacion": "DERIVADO"
+        }
+      },
+      "detalles": "Capacidad oficial: 200 personas. Ubicado en San Diego frente al caño de Juan Angola y el Castillo de San Felipe; posee garita, troneras y rampa frente a la Calle San Pedro Mártir.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Baluarte de Santa Teresa (Getsemaní)",
+      "forma": "semibaluarte",
+      "area_m2": {
+        "valor": 498,
+        "clasificacion": "EXACTO",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/"
+      },
+      "altura_m": {
+        "valor": 8.0,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "7.0 - 9.0 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 25.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado geométricamente a partir del área oficial de 498 m²."
+        },
+        "longitud_flancos_m": {
+          "valor": 12.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Destaca por su característico flanco curvo diseñado por razones tácticas para batir el revellín de la Media Luna."
+        },
+        "ancho_gola_m": {
+          "valor": 20.0,
+          "clasificacion": "DERIVADO"
+        }
+      },
+      "detalles": "VERIFICADO: Construido en 1631 por Francisco de Murga a la izquierda de la entrada de la Puerta de la Media Luna (Calle del Guerrero, Getsemaní). Dañado por el Barón de Pointis (1697) y restaurado y terraplenado por Juan de Herrera y Sotomayor en 1732. Su rasgo morfológico único para el modelado 3D es su flanco curvo. Capacidad oficial: 100 personas.",
+      "fuente": "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-teresa/"
+    },
+    {
+      "nombre": "Otros Baluartes de Getsemaní (San Miguel de Chambacú, Santa Bárbara, San José y El Reducto)",
+      "forma": "semibaluarte",
+      "area_m2": {
+        "valor": 519,
+        "clasificacion": "EXACTO",
+        "nota": "519 m² para San Miguel de Chambacú y 498 m² para Santa Bárbara y San José según guía de reservas de la ETCAR.",
+        "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/"
+      },
+      "altura_m": {
+        "valor": 8.0,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "7.0 - 9.0 m"
+      },
+      "geometria_planta": {
+        "longitud_caras_m": {
+          "valor": 25.0,
+          "clasificacion": "DERIVADO",
+          "nota": "Derivado de las superficies oficiales de 498 m² a 519 m²."
+        },
+        "longitud_flancos_m": {
+          "valor": 11.5,
+          "clasificacion": "DERIVADO"
+        },
+        "ancho_gola_m": {
+          "valor": 21.0,
+          "clasificacion": "DERIVADO"
+        }
+      },
+      "detalles": "Cinturón defensivo del arrabal construido en 1631 bajo Francisco de Murga; Santa Bárbara protegía el costado derecho de la Puerta de la Media Luna (acceso por rampa en Av. del Pedregal) y San José se ubica sobre la Laguna de San Lázaro (acceso cerca al Callejón Angosto).",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/"
+    }
+  ],
+  "puertas": [
+    {
+      "nombre": "Puerta del Reloj (originalmente Puerta de la Boca del Puente)",
+      "ubicacion": "Entre el Baluarte de San Juan Evangelista y el desaparecido Baluarte de San Pedro Apóstol, frente a la Plaza de los Coches y el Camellón de los Mártires.",
+      "dimensiones_modelado": {
+        "altura_total_torre_m": {
+          "valor": 30.0,
+          "clasificacion": "EXACTO",
+          "nota": "Altura documentada de la torre desde la base de la portada hasta el remate de la aguja neogótica.",
+          "fuente": "https://donde.co/es/cartagena/atracciones-turisticas/monumentos-fortificaciones/torre-del-reloj-654"
+        },
+        "ancho_portada_m": {
+          "valor": 22.0,
+          "clasificacion": "APROXIMADO",
+          "rango_referencia": "20.0 - 24.0 m",
+          "nota": "Ancho frontal del cuerpo bajo tripartito (arco central de ingreso más los dos cuerpos laterales abovedados)."
+        },
+        "fondo_tunel_m": {
+          "valor": 15.0,
+          "clasificacion": "APROXIMADO",
+          "rango_referencia": "14.0 - 16.0 m",
+          "nota": "Profundidad de las tres bóvedas de cañón que atraviesan el espesor del terraplén."
+        }
+      },
+      "arquitectura": "Portada barroca tripartita de principios del siglo XVIII (Juan de Herrera y Sotomayor) con arco de medio punto central flanqueado por pares de pilastras toscanas, entablamento dórico con triglifos y tres bóvedas de cañón paralelas (paso central peatonal y dos galerías laterales que servían de cuerpo de guardia y capilla); coronada en 1888 por la torre octogonal de estilo gótico-mudéjar de Luis Felipe Jaspe Franco.",
+      "fuente": "https://whc.unesco.org/es/list/285"
+    },
+    {
+      "nombre": "Puerta de Santo Domingo (Bocas de Roda)",
+      "ubicacion": "Cortina entre el Baluarte de Santo Domingo y el Baluarte de Santiago Apóstol.",
+      "arquitectura": "Paso abovedado en esviaje a través del terraplén de la cortina marina.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    {
+      "nombre": "Puerta de Santa Catalina (o de la Cruz Grande)",
+      "ubicacion": "Cortina entre los baluartes de Santa Catalina y San Lucas.",
+      "arquitectura": "Acceso fortificado a través de la cortina que comunicaba con el istmo de El Cabrero.",
+      "fuente": "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-catalina/"
+    },
+    {
+      "nombre": "Puerta de la Paz y la Concordia",
+      "ubicacion": "Sector de San Diego / La Serrezuela, entre el Baluarte de San Lucas y el Baluarte de San Pedro Mártir.",
+      "arquitectura": "Brecha monumental con pilares conmemorativos abierta en 1905.",
+      "fuente": "https://pemp.cartagena.gov.co/sites/default/files/2023-12/PV%20Cartagena_Informe%203.pdf"
+    },
+    {
+      "nombre": "Puerta de la Media Luna (Desaparecida)",
+      "ubicacion": "Extremo oriental de Getsemaní, flanqueada por el Baluarte de Santa Bárbara (derecha/norte) y el Baluarte de Santa Teresa (izquierda/sur).",
+      "arquitectura": "Puerta-revellín monumental con foso de agua y puente levadizo (1631), única entrada terrestre a la ciudad; demolida en 1893.",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/"
+    }
+  ],
+  "las_bovedas": {
+    "nombre_oficial": "Cuartel Militar de Las Bóvedas (Bóvedas a prueba de bomba de Santa Catalina)",
+    "ingeniero": "Antonio de Arévalo",
+    "anios_construccion": "1789 - 1798",
+    "ubicacion": "Adosadas a la cortina entre los baluartes de Santa Clara y Santa Catalina (barrio de San Diego)",
+    "numero_bovedas": {
+      "valor": 23,
+      "clasificacion": "EXACTO",
+      "fuente": "https://colombia.travel/es/cartagena/conoce-las-bovedas"
+    },
+    "numero_arcos_portada": {
+      "valor": 47,
+      "clasificacion": "EXACTO",
+      "fuente": "https://colombia.travel/es/cartagena/conoce-las-bovedas"
+    },
+    "area_plataforma_m2": {
+      "valor": 1128,
+      "clasificacion": "EXACTO",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    "capacidad_personas_plataforma": {
+      "valor": 500,
+      "clasificacion": "EXACTO",
+      "fuente": "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    },
+    "dimensiones_modelado": {
+      "largo_total_m": {
+        "valor": 135.0,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "130.0 - 138.0 m",
+        "nota": "Longitud total de la fachada neoclásica de 47 arcos entre Santa Clara y Santa Catalina."
+      },
+      "ancho_libre_cada_boveda_m": {
+        "valor": 4.8,
+        "clasificacion": "DERIVADO",
+        "nota": "Luz libre interior de cada bóveda de cañón (~4.8 m), con muros divisorios de carga de ~1.05 m de espesor (módulo estructural eje a eje de ~5.87 m = 135 m / 23 bóvedas)."
+      },
+      "fondo_cada_boveda_m": {
+        "valor": 15.5,
+        "clasificacion": "DERIVADO",
+        "rango_referencia": "15.0 - 18.0 m",
+        "nota": "Profundidad interior de la nave abovedada (más ~3.0 m de la galería porticada exterior)."
+      },
+      "altura_fachada_m": {
+        "valor": 8.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "8.0 - 9.5 m (hasta la cornisa; ~11.0 m en el vértice del frontón central)"
+      }
+    },
+    "arquitectura_y_funcion": "Edificación neoclásica militar integrada al terraplén. Consta de 23 bóvedas de medio cañón 'a prueba de bomba' precedidas por una galería porticada de 47 arcos de medio punto sobre pilares toscanos y frontón central triangular con escudo real.",
+    "fuentes": [
+      "https://colombia.travel/es/cartagena/conoce-las-bovedas",
+      "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    ]
+  },
+  "materiales": {
+    "piedra": "Piedra caliza coralina (roca sedimentaria bioclástica/arrecifal del Pleistoceno-Holoceno, extraída de Tierrabomba, Barú y Albornoz), combinada en mampostería concertada y sillería con ladrillo cocido de tejar (en bóvedas, arcos de troneras y cúpulas de garitas) y argamasa de cal viva, arena y agua.",
+    "color_hex_aprox": {
+      "piedra_coralina_limpia": "#C8B598",
+      "piedra_meteorizada_media": "#8C7D6B",
+      "patina_biologica_oscura": "#3E3A35",
+      "ocre_amarillo_colonial_bovedas_y_reloj": "#D9A441",
+      "blanco_cal_detalles": "#F2EFE9"
+    },
+    "textura": "Altamente porosa, cavernosa y fosilífera (oquedades visibles de corales cerebriformes y moluscos); aparejo de sillares escuadrados (bloques típicos de ~0.60 x 0.30 x 0.30 m) en escarpas exteriores, cordón magistral y esquinas de baluartes, con juntas de mortero de cal.",
+    "fuente": "https://whc.unesco.org/es/list/285"
+  },
+  "dimensiones_tipicas": {
+    "nota_metodologica": "Valores de trabajo estandarizados para modelado 3D paramétrico, convirtiendo los rangos históricos y constructivos de la escuela abaluartada hispánica (1 vara castellana = 0.8359 m; 1 pie castellano = 0.2786 m) en medidas operativas con su respectiva clasificación.",
+    "altura_escarpa_cortinas_m": {
+      "valor": 7.5,
+      "clasificacion": "APROXIMADO",
+      "rango_referencia": "6.0 - 9.0 m",
+      "nota": "6.0 m en cortinas del frente marino (La Merced / Santa Clara) y 8.0 - 9.0 m en cortinas terrestres y de bahía."
+    },
+    "altura_baluartes_principales_m": {
+      "valor": 11.0,
+      "clasificacion": "APROXIMADO",
+      "rango_referencia": "10.0 - 12.0 m",
+      "nota": "Aplicable a los baluartes de Santo Domingo, Santa Catalina y San Lucas (medido desde la base de la escarpa hasta la cresta del parapeto)."
+    },
+    "espesor_terraplen_cortinas_m": {
+      "valor": 7.5,
+      "clasificacion": "APROXIMADO",
+      "rango_referencia": "7.0 - 8.0 m",
+      "nota": "Incluye muro de escarpa exterior, terraplén de tierra apisonada (adarve) y muro de contención interior."
+    },
+    "espesor_terraplen_baluartes_m": {
+      "valor": 16.0,
+      "clasificacion": "APROXIMADO",
+      "rango_referencia": "14.0 - 18.0 m",
+      "nota": "Ancho de las plataformas/terraplenes perimetrales y golas en los baluartes mayores para absorber retroceso de cañones de 24 libras."
+    },
+    "talud_escarpa": {
+      "relacion": "1:5.5",
+      "rango_relacion": "1:5 a 1:6",
+      "angulo_respecto_vertical_grados": 10.3,
+      "angulo_respecto_horizontal_grados": 79.7,
+      "rango_grados_horizontal": "78.7° (1:5) a 80.5° (1:6)",
+      "clasificacion": "DERIVADO",
+      "nota": "El valor angular se deriva trigonométricamente (arctan(5.5) = 79.7°) del talud canónico hispánico de 1/5 a 1/6 de la altura."
+    },
+    "parapeto": {
+      "altura_interior_sobre_banqueta_m": {
+        "valor": 1.35,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "1.30 - 1.40 m (más ~0.45 m de banqueta = ~1.80 m sobre el nivel del adarve)"
+      },
+      "altura_exterior_sobre_cordon_m": {
+        "valor": 1.6,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "1.50 - 1.80 m (con declive superior o 'plano de fuego' inclinado hacia el exterior)"
+      },
+      "espesor_parapeto_m": {
+        "valor": 2.5,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "2.0 - 3.0 m (8 a 10 pies castellanos en los merlones entre cañoneras/troneras)"
+      }
+    },
+    "cordon_magistral": {
+      "diametro_bocel_m": {
+        "valor": 0.35,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "0.30 - 0.40 m (~1 pie a 1.5 pies castellanos)",
+        "nota": "Moldura semicircular (toro/bocel) de piedra coralina que sobresale ~0.18 m del plano de encuentro entre la escarpa en talud y el parapeto vertical."
+      }
+    },
+    "garita_tipica": {
+      "diametro_exterior_tambor_m": {
+        "valor": 2.1,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "1.90 - 2.20 m (diámetro libre interior de ~1.40 m)"
+      },
+      "altura_total_m": {
+        "valor": 5.2,
+        "clasificacion": "APROXIMADO",
+        "rango_referencia": "4.80 - 5.50 m",
+        "desglose_vertical": "Base/ménsula cónica anillada inferior (~1.50 m) + cuerpo cilíndrico con 3 a 4 mirillas verticales y vano de acceso (~2.20 m) + cornisa, cúpula de media naranja y pináculo/florón de remate (~1.50 m)."
+      }
+    }
+  },
+  "elementos_decorativos": [
+    "Garitas (garitones esquineros de planta circular en voladizo sobre ménsulas cónicas moldeadas, cuerpo con mirillas verticales y cubierta de cúpula de media naranja con pináculo)",
+    "Cañones (piezas de artillería de hierro fundido de los siglos XVII y XVIII sobre cureñas de madera en las cañoneras)",
+    "Escudos heráldicos reales (labrados en piedra en la Puerta del Reloj y en el frontón central de Las Bóvedas)",
+    "Reloj público y aguja neogótica (Torre del Reloj sobre la Puerta de la Boca del Puente, de 30 m de altura total)",
+    "Cordón magistral (moldura semicircular de piedra coralina de ~0.35 m de diámetro que marca la transición entre la escarpa en talud y el parapeto)",
+    "Brocales de aljibes y canales pluviales (en las explanadas de Santo Domingo, San Francisco Javier y Santa Catalina)",
+    "Tendales (cobertizos coloniales con columnas de mampostería y cubierta de teja española a cuatro aguas en Santa Catalina y San Lucas)"
+  ],
+  "contexto_paisaje": "Al noroeste y norte, el mar Caribe abierto separado de la escarpa por la Avenida Santander y las escolleras de piedra; al suroeste la península de Bocagrande; al sur la Bahía de las Ánimas (Muelle de los Pegasos) y el Camellón de los Mártires conectando con Getsemaní; al este los cuerpos de agua del Caño de Juan Angola y la Laguna de San Lázaro, dominados a 1,25 km al sureste de Santa Catalina por el Castillo de San Felipe de Barajas sobre el cerro de San Lázaro.",
+  "fotos_referencia": {
+    "vista_aerea": [
+      "https://whc.unesco.org/es/list/285/gallery/",
+      "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/"
+    ],
+    "desde_el_mar": [
+      "https://commons.wikimedia.org/wiki/File:Panorama_Baluarte_de_Santo_Domingo_CTG_11_2019_2143.jpg",
+      "https://commons.wikimedia.org/wiki/Category:City_walls_of_Cartagena,_Colombia"
+    ],
+    "desde_el_adarve": [
+      "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-catalina/",
+      "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-teresa/"
+    ],
+    "torre_del_reloj_frontal": [
+      "https://commons.wikimedia.org/wiki/Category:Torre_del_Reloj,_Cartagena",
+      "https://donde.co/es/cartagena/atracciones-turisticas/monumentos-fortificaciones/torre-del-reloj-654"
+    ],
+    "las_bovedas": [
+      "https://es.wikipedia.org/wiki/Archivo:Bovedas_cartagena.jpg",
+      "https://colombia.travel/es/cartagena/conoce-las-bovedas"
+    ],
+    "garita_de_cerca": [
+      "https://commons.wikimedia.org/wiki/File:Garita_y_muralla_de_la_Torre_del_Reloj._Cartagena..JPG",
+      "https://commons.wikimedia.org/wiki/Category:City_walls_of_Cartagena,_Colombia"
+    ],
+    "textura_de_la_piedra": [
+      "https://commons.wikimedia.org/wiki/File:Piedra_Coralina_Cartagena.jpg",
+      "https://commons.wikimedia.org/wiki/Category:City_walls_of_Cartagena,_Colombia"
+    ]
+  },
+  "conflictos_entre_fuentes": [
+    {
+      "dato": "Longitud del cordón amurallado (11.000 m vs. 3.426 m)",
+      "versiones": [
+        "11.000 metros (APROXIMADO): Cifra histórica divulgativa que suma el perímetro original incluyendo tramos demolidos, escolleras y obras exteriores. Fuente: https://colombia.travel/es/cartagena/las-murallas-de-cartagena",
+        "3.426 metros (EXACTO): Medición técnica oficial del cinturón amurallado conservado en el Centro Histórico según el PEMP de Cartagena. Fuente: https://pemp.cartagena.gov.co/sites/default/files/2023-12/PV%20Cartagena_Informe%203.pdf"
+      ]
+    },
+    {
+      "dato": "Años de construcción del Cuartel de Las Bóvedas",
+      "versiones": [
+        "1792 - 1798: Rango citado en la ficha de reservas de la ETCAR. Fuente: https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/",
+        "1789 - 1796/1798: Rango citado en la historiografía militar (Rodolfo Segovia), marcando 1789 como fecha del proyecto de Antonio de Arévalo."
+      ]
+    },
+    {
+      "dato": "Identidad de Juan Bautista Antonelli 'El Mozo' vs. Juan Bautista Mac-Evan",
+      "versiones": [
+        "Corregido y separado: Juan Bautista Antonelli 'El Mozo' (hijo de Bautista Antonelli) actuó en el primer tercio del siglo XVII, mientras que Juan Bautista Mac-Evan fue ingeniero director en el siglo XVIII (1741-1744) junto a Carlos Desnaux en la construcción del Fuerte de San Sebastián del Pastelillo tras el sitio de Vernon. Fuente: https://fortificacionescartagena.com.co/es/destination/san-sebastian-del-pastelillo/"
+      ]
+    }
+  ],
+  "fuentes": [
+    "https://whc.unesco.org/es/list/285",
+    "https://fortificacionescartagena.com.co/es/servicios/reservas/centro-historico/",
+    "https://fortificacionescartagena.com.co/es/servicios/reservas/barrio-de-getsemani/",
+    "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-catalina/",
+    "https://fortificacionescartagena.com.co/es/destination/baluarte-de-santa-teresa/",
+    "https://fortificacionescartagena.com.co/es/destination/san-sebastian-del-pastelillo/",
+    "https://www.smpcartagena.org/baluarte-san-sebastian-del-pastelillo",
+    "https://pemp.cartagena.gov.co/sites/default/files/2023-12/PV%20Cartagena_Informe%203.pdf",
+    "https://colombia.travel/es/cartagena/conoce-las-bovedas",
+    "https://colombia.travel/es/cartagena/las-murallas-de-cartagena",
+    "https://donde.co/es/cartagena/atracciones-turisticas/monumentos-fortificaciones/torre-del-reloj-654",
+    "https://mapcarta.com/es/W1031619550",
+    "https://commons.wikimedia.org/wiki/Category:City_walls_of_Cartagena,_Colombia",
+    "https://commons.wikimedia.org/wiki/Category:Torre_del_Reloj,_Cartagena",
+    "https://es.wikipedia.org/wiki/Archivo:Bovedas_cartagena.jpg"
+  ]
+}</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* =====================================================================
+   FUENTE DE VERDAD: el JSON corregido (embebido arriba, sin modificar).
+   Todo valor que NO sale del JSON está marcado con  // APROXIMADO
+   ===================================================================== */
+const DATA = JSON.parse(document.getElementById('fuente').textContent);
+const DT = DATA.dimensiones_tipicas;
+const COLX = DATA.materiales.color_hex_aprox;
+const BOV = DATA.las_bovedas;
+const RELOJ = DATA.puertas.find(p=>p.nombre.includes('Reloj'));
+
+// ---- Perfil de muralla (todo desde dimensiones_tipicas) ----
+const PAR_EXT  = DT.parapeto.altura_exterior_sobre_cordon_m.valor;   // 1.60
+const PAR_INT  = DT.parapeto.altura_interior_sobre_banqueta_m.valor; // 1.35
+const PAR_THK  = DT.parapeto.espesor_parapeto_m.valor;               // 2.50
+const BANQ_H   = 0.45;  // del rango_referencia del parapeto ("~0.45 m de banqueta")
+const BANQ_W   = 0.60;  // APROXIMADO: el JSON no da el ancho de la banqueta
+const CORD_R   = DT.cordon_magistral.diametro_bocel_m.valor / 2;     // 0.175
+const CORD_PROJ= 0.18;  // nota del cordón magistral ("sobresale ~0.18 m")
+const TALUD    = parseFloat(DT.talud_escarpa.relacion.split(':')[1]); // 5.5
+const T_CURT   = DT.espesor_terraplen_cortinas_m.valor;              // 7.5
+const H_CURT   = DT.altura_escarpa_cortinas_m.valor;                 // 7.5
+const H_CURT_MAR  = 6.0;  // nota de altura_escarpa_cortinas: 6.0 m frente marino (La Merced / Santa Clara)
+const H_CURT_TERR = 8.5;  // APROXIMADO: punto medio del rango 8.0-9.0 m (cortinas terrestres y de bahía)
+const T_BAST   = PAR_THK + BANQ_W + 0.01;   // espesor de muro perimetral del baluarte (el resto es terraplén macizo)
+const CREST    = CORD_R + PAR_EXT;          // cresta exterior por encima del borde superior de la escarpa
+const GAR      = DT.garita_tipica;
+const WATER_Y  = -0.8;   // APROXIMADO: nivel del mar respecto del suelo urbano (no consta)
+const EYE      = 1.65;   // altura de ojos en el recorrido
+
+/* =====================================================================
+   projectCoords: lat/lon -> plano local en metros (E, N). Origen = Torre del Reloj
+   ===================================================================== */
+const ORIGIN = { lat: 10.42265, lon: -75.54865 }; // APROXIMADO: Torre del Reloj (no hay coordenada en el JSON)
+const R_EARTH = 6378137;
+function projectCoords(lat, lon){
+  const k = Math.PI/180;
+  return { e: (lon-ORIGIN.lon)*k*R_EARTH*Math.cos(ORIGIN.lat*k), n: (lat-ORIGIN.lat)*k*R_EARTH };
+}
+const V3 = (e, y, n) => new THREE.Vector3(e, y, -n);   // (Este, altura, Norte) -> Three (x, y, z)
+
+/* =====================================================================
+   TRAZADO. El JSON trae "polilinea_osm": null. Solo hay un dato real:
+   centroide del Baluarte de Santa Catalina (way 1031619550) 10.43082,-75.54572.
+   Los anclajes siguientes reproducen el ORDEN y la ORIENTACIÓN descritos en
+   "trazado.orientacion" y "puntos_en_orden", pero sus coordenadas son APROXIMADAS.
+   ===================================================================== */
+const SC_CENTROID = (()=>{ const m = DATA.trazado.puntos_en_orden.find(p=>p.osm_way_id==='1031619550').nota.match(/lat ([\d.]+), lon (-?[\d.]+)/); return projectCoords(+m[1], +m[2]); })();
+
+const bd = s => DATA.baluartes.find(b => b.nombre.includes(s));
+// cH = altura de escarpa de la cortina que llega a este elemento; hd = alto detalle
+const CHAIN_A = [ // APROXIMADO: lat/lon de anclaje (excepto Santa Catalina, bloqueada al centroide OSM)
+  { id:'reloj',   type:'start',  lat:10.42265, lon:-75.54865, offset:11 },
+  { id:'sje',     type:'bastion', lat:10.42245, lon:-75.54950, src:'San Juan Evangelista', cH:H_CURT_TERR, hd:true,  chd:true, side:-1 },
+  { id:'signacio',type:'bastion', lat:10.42205, lon:-75.55115, src:'San Ignacio de Loyola', cH:H_CURT_TERR, hd:false, chd:false },
+  { id:'sfj',     type:'bastion', lat:10.42235, lon:-75.55315, src:'San Francisco Javier', cH:H_CURT_TERR, hd:false, chd:false },
+  { id:'santiago',type:'bastion', lat:10.42385, lon:-75.55290, src:'Santiago Apóstol', cH:H_CURT, hd:false, chd:false },
+  { id:'pdomingo',type:'gate',    lat:10.42460, lon:-75.55255, width:4.0, skew:12 },
+  { id:'sdomingo',type:'bastion', lat:10.42545, lon:-75.55205, src:'Santo Domingo', cH:H_CURT, hd:true, chd:true, orejon:3 },
+  { id:'scruz',   type:'bastion', lat:10.42650, lon:-75.55130, src:'Santa Cruz', cH:H_CURT_MAR, hd:true, chd:true, side:-1 },
+  { id:'ballestas',type:'point',  lat:10.42710, lon:-75.55080 },
+  { id:'merced',  type:'bastion', lat:10.42770, lon:-75.55025, src:'La Merced', cH:H_CURT_MAR, hd:true, chd:true, side:1, vacio:true },
+  { id:'sclara',  type:'bastion', lat:10.42905, lon:-75.54850, src:'Santa Clara', cH:H_CURT_MAR, hd:true, chd:true, side:1 },
+  { id:'scatalina',type:'bastion',lat:10.43050, lon:-75.54590, src:'Baluarte de Santa Catalina', cH:8.325, hd:true, chd:true, lock:true },
+  { id:'pcatalina',type:'gate',   lat:10.42990, lon:-75.54480, width:4.0, skew:0 },
+  { id:'slucas',  type:'bastion', lat:10.42920, lon:-75.54430, src:'San Lucas', cH:H_CURT_TERR, hd:true, chd:true, side:-1 },
+  { id:'paz',     type:'breach',  lat:10.42800, lon:-75.54410, width:14, pillars:true },
+  { id:'spm',     type:'bastion', lat:10.42680, lon:-75.54430, src:'San Pedro Mártir', cH:H_CURT_TERR, hd:false, chd:false },
+];
+// cH de Las Bóvedas = 8.325: APROXIMADO, para que el adarve (8.5 m) enrase con la plataforma de Las Bóvedas (altura_fachada 8.5)
+const CHAIN_B = [ // Getsemaní — APROXIMADO
+  { id:'chambacu', type:'bastion', lat:10.42330, lon:-75.54520, src:'Otros Baluartes', area:519, cH:H_CURT_TERR, side:1 },
+  { id:'sbarbara', type:'bastion', lat:10.42210, lon:-75.54440, src:'Otros Baluartes', area:498, cH:H_CURT_TERR, side:1 },
+  { id:'medialuna',type:'breach',  lat:10.42150, lon:-75.54415, width:22, gone:true },
+  { id:'steresa',  type:'bastion', lat:10.42085, lon:-75.54410, src:'Santa Teresa', cH:H_CURT_TERR, side:-1, curved:true },
+  { id:'sjose',    type:'bastion', lat:10.41975, lon:-75.54440, src:'Otros Baluartes', area:498, cH:H_CURT_TERR, side:-1 },
+  { id:'reducto',  type:'bastion', lat:10.41880, lon:-75.54600, src:'Otros Baluartes', cH:H_CURT_TERR, side:-1 },
+];
+const MATUNA_LL = [[10.42520,-75.54560],[10.42380,-75.54750]]; // APROXIMADO: trazado del tramo demolido
+
+const NAMES = {
+  reloj:'Puerta del Reloj', sje:'San Juan Evangelista', signacio:'San Ignacio de Loyola', sfj:'San Francisco Javier',
+  santiago:'Santiago Apóstol', pdomingo:'Puerta de Santo Domingo', sdomingo:'Santo Domingo', scruz:'La Santa Cruz',
+  merced:'La Merced', sclara:'Santa Clara', scatalina:'Santa Catalina', pcatalina:'Puerta de Santa Catalina', slucas:'San Lucas',
+  paz:'Puerta de la Paz y la Concordia', spm:'San Pedro Mártir', chambacu:'San Miguel de Chambacú', sbarbara:'Santa Bárbara',
+  medialuna:'Puerta de la Media Luna', steresa:'Santa Teresa', sjose:'San José', reducto:'El Reducto', tenaza:'Espigón de la Tenaza',
+  bovedas:'Las Bóvedas', matuna:'Tramo demolido', castillo:'Castillo San Felipe'
+};
+
+/* =====================================================================
+   Utilidades
+   ===================================================================== */
+function rng(seed){ let s = seed>>>0 || 1; return ()=>{ s ^= s<<13; s ^= s>>>17; s ^= s<<5; return (s>>>0)/4294967296; }; }
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const sstep=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+const hexRGB = h => { const v=parseInt(h.slice(1),16); return [(v>>16)&255,(v>>8)&255,v&255]; };
+function pip(e,n,poly){ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i],b=poly[j]; if(((a[1]>n)!==(b[1]>n)) && (e < (b[0]-a[0])*(n-a[1])/(b[1]-a[1]+1e-12)+a[0])) c=!c; } return c; }
+function polyArea(p){ let s=0; for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length]; s+=a[0]*b[1]-b[0]*a[1];} return s/2; }
+function centroid(p){ let a=0,cx=0,cy=0; for(let i=0;i<p.length;i++){const q=p[i],r=p[(i+1)%p.length]; const f=q[0]*r[1]-r[0]*q[1]; a+=f; cx+=(q[0]+r[0])*f; cy+=(q[1]+r[1])*f;} a/=2; return [cx/(6*a), cy/(6*a)]; }
+
+// Acumulador de geometría no indexada (posición, normal, uv en metros)
+class Geo{
+  constructor(){ this.p=[]; this.n=[]; this.u=[]; }
+  v(p,nr,u,v){ this.p.push(p[0],p[1],p[2]); this.n.push(nr[0],nr[1],nr[2]); this.u.push(u,v); }
+  tri(a,b,c,na,nb,nc,ua,ub,uc){ this.v(a,na,ua[0],ua[1]); this.v(b,nb,ub[0],ub[1]); this.v(c,nc,uc[0],uc[1]); }
+  geometry(){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(this.p,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(this.n,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(this.u,2)); return g; }
+}
+const BUCKET = {}; ['stone','pave','ocre','cal','dark','iron','wood','tile','ground','grass','street','asphalt','vault'].forEach(k=>BUCKET[k]={geo:new Geo(), list:[]});
+function clean(g){ g = g.index ? g.toNonIndexed() : g.clone(); for(const k of Object.keys(g.attributes)) if(!['position','normal','uv'].includes(k)) g.deleteAttribute(k); if(!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*2),2)); g.clearGroups(); g.morphAttributes={}; return g; }
+// Proyección planar en metros según la normal dominante (para primitivas Three)
+function meterUV(g, s=1){ const p=g.attributes.position, n=g.attributes.normal, uv=g.attributes.uv; for(let i=0;i<p.count;i++){ const ax=Math.abs(n.getX(i)), ay=Math.abs(n.getY(i)), az=Math.abs(n.getZ(i)); let u,v; if(ay>=ax&&ay>=az){u=p.getX(i);v=p.getZ(i);} else if(ax>=az){u=p.getZ(i);v=p.getY(i);} else {u=p.getX(i);v=p.getY(i);} uv.setXY(i,u*s,v*s);} uv.needsUpdate=true; return g; }
+function add(key, geo, matrix, uvWorld=false){ let g=clean(geo); if(matrix) g.applyMatrix4(matrix); if(uvWorld) meterUV(g); BUCKET[key].list.push(g); }
+function frameM(e,n,y,te,tn){ // X = tangente, Y = arriba, Z = hacia el interior (izquierda = exterior)
+  const x=new THREE.Vector3(te,0,-tn), yv=new THREE.Vector3(0,1,0), z=new THREE.Vector3().crossVectors(x,yv);
+  return new THREE.Matrix4().makeBasis(x,yv,z).setPosition(e,y,-n);
+}
+const box=(w,h,d)=>new THREE.BoxGeometry(w,h,d);
+const T = (g,x,y,z)=>{ g.translate(x,y,z); return g; };
+
+/* =====================================================================
+   RECORRIDO / ALTURAS: regiones 2D con altura (para el modo WASD y para la ciudad)
+   ===================================================================== */
+const WALK = { cell:25, map:new Map(), regions:[], land:[] };
+function addRegion(poly, h, kind='wall'){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const p of poly){x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);}
+  const r={poly,h,kind,bb:[x0,y0,x1,y1]}; WALK.regions.push(r);
+  for(let i=Math.floor(x0/WALK.cell);i<=Math.floor(x1/WALK.cell);i++) for(let j=Math.floor(y0/WALK.cell);j<=Math.floor(y1/WALK.cell);j++){ const k=i+','+j; if(!WALK.map.has(k)) WALK.map.set(k,[]); WALK.map.get(k).push(r); }
+  return r;
+}
+function regionsNear(e,n){ return WALK.map.get(Math.floor(e/WALK.cell)+','+Math.floor(n/WALK.cell)) || []; }
+let landHeight = (e,n)=>0;
+function heightAt(e,n){
+  let best=-Infinity, any=false;
+  for(const r of regionsNear(e,n)){
+    if(r.h===null) continue;
+    if(e<r.bb[0]||e>r.bb[2]||n<r.bb[1]||n>r.bb[3]) continue;
+    if(!pip(e,n,r.poly)) continue;
+    const v = typeof r.h==='function' ? r.h(e,n) : r.h;
+    if(v===Infinity) return Infinity;
+    best=Math.max(best,v); any=true;
+  }
+  return any ? best : landHeight(e,n);
+}
+function rectBlocked(poly, pad){ // ¿choca un lote con alguna estructura?
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const p of poly){x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);}
+  x0-=pad;y0-=pad;x1+=pad;y1+=pad;
+  for(let i=Math.floor(x0/WALK.cell);i<=Math.floor(x1/WALK.cell);i++) for(let j=Math.floor(y0/WALK.cell);j<=Math.floor(y1/WALK.cell);j++){
+    for(const r of (WALK.map.get(i+','+j)||[])){ if(r.kind==='house') continue; if(r.bb[0]<x1&&r.bb[2]>x0&&r.bb[1]<y1&&r.bb[3]>y0) return true; }
+  }
+  return false;
+}
+
+/* =====================================================================
+   TEXTURAS PROCEDURALES (sin imágenes externas)
+   ===================================================================== */
+function makeNoise(seed){
+  const r=rng(seed), perm=[...Array(256).keys()];
+  for(let i=255;i>0;i--){const j=Math.floor(r()*(i+1)); [perm[i],perm[j]]=[perm[j],perm[i]];}
+  const p=new Uint8Array(512); for(let i=0;i<512;i++) p[i]=perm[i&255];
+  const fade=t=>t*t*t*(t*(t*6-15)+10);
+  const gr=(h,x,y)=>{switch(h&7){case 0:return x+y;case 1:return -x+y;case 2:return x-y;case 3:return -x-y;case 4:return x;case 5:return -x;case 6:return y;default:return -y;}};
+  return (x,y,px,py)=>{ // tileable con periodos px, py (en celdas)
+    let X=Math.floor(x),Y=Math.floor(y); x-=X; y-=Y;
+    const X0=((X%px)+px)%px, X1=(X0+1)%px, Y0=((Y%py)+py)%py, Y1=(Y0+1)%py;
+    const u=fade(x),v=fade(y);
+    const a=gr(p[p[X0]+Y0],x,y), b=gr(p[p[X1]+Y0],x-1,y), c=gr(p[p[X0]+Y1],x,y-1), d=gr(p[p[X1]+Y1],x-1,y-1);
+    return (a+(b-a)*u)+((c+(d-c)*u)-(a+(b-a)*u))*v;
+  };
+}
+function fbm(nz,x,y,px,py,oct){ let s=0,a=0.5,f=1; for(let o=0;o<oct;o++){ s+=a*nz(x*f,y*f,px*f,py*f); a*=0.5; f*=2; } return s; }
+function canvasTex(c, srgb, rx=1, ry=1){ const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=srgb?THREE.SRGBColorSpace:THREE.NoColorSpace; t.repeat.set(rx,ry); t.anisotropy=8; t.generateMipmaps=true; t.needsUpdate=true; return t; }
+function normalFromHeight(h,W,H,str){
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const g=c.getContext('2d'); const im=g.createImageData(W,H);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const l=h[y*W+((x-1+W)%W)], r=h[y*W+((x+1)%W)], u=h[((y-1+H)%H)*W+x], d=h[((y+1)%H)*W+x];
+    let nx=-(r-l)*str, ny=(d-u)*str, nz=1; const L=Math.hypot(nx,ny,nz); nx/=L;ny/=L;nz/=L;
+    const i=(y*W+x)*4; im.data[i]=(nx*0.5+0.5)*255; im.data[i+1]=(ny*0.5+0.5)*255; im.data[i+2]=(nz*0.5+0.5)*255; im.data[i+3]=255;
+  }
+  g.putImageData(im,0,0); return c;
+}
+// Piedra coralina: sillares 0.60 x 0.30 m (JSON materiales.textura), porosidad, juntas de cal
+function stoneTextures(){
+  const W=1024,H=512, PX=W/4.8;                     // tile = 4.8 m x 2.4 m
+  const bw=0.60*PX, bh=0.30*PX;                       // JSON: bloques ~0.60 x 0.30 m
+  const nz=makeNoise(7), nz2=makeNoise(19), r=rng(5);
+  const C=hexRGB(COLX.piedra_coralina_limpia), M=hexRGB(COLX.piedra_meteorizada_media), J=hexRGB(COLX.blanco_cal_detalles);
+  const tones=[]; for(let i=0;i<200;i++) tones.push(r());
+  const hgt=new Float32Array(W*H);
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const g=c.getContext('2d'); const im=g.createImageData(W,H);
+  for(let y=0;y<H;y++){ const row=Math.floor(y/bh), ly=y-row*bh, off=(row%2)*bw*0.5;
+    for(let x=0;x<W;x++){
+      const xx=(x+off)%W, col=Math.floor(xx/bw), lx=xx-col*bw;
+      const d=Math.min(lx,bw-lx,ly,bh-ly);
+      const tone=tones[(row*9+col)%200];
+      const n1=fbm(nz,x/W*12,y/H*6,12,6,3);
+      const pore=nz2(x/W*170,y/H*85,170,85)*0.6+nz2(x/W*60,y/H*30,60,30)*0.5;
+      const pit=sstep(0.28,0.5,pore);
+      const joint = d<2.4 ? 1 : 0, bev=sstep(2.4,9,d);
+      let k=clamp(tone*0.75+n1*0.9+0.1,0,1);
+      let R=lerp(C[0],M[0],k), G=lerp(C[1],M[1],k), B=lerp(C[2],M[2],k);
+      const dark=1-pit*0.5-(1-bev)*0.12;
+      R*=dark;G*=dark;B*=dark;
+      if(joint){ R=J[0]*0.72;G=J[1]*0.70;B=J[2]*0.64; }
+      const i=(y*W+x)*4; im.data[i]=R; im.data[i+1]=G; im.data[i+2]=B; im.data[i+3]=255;
+      hgt[y*W+x] = joint ? 0.1 : (0.55+0.45*bev) - pit*0.45 + n1*0.12;
+    }}
+  g.putImageData(im,0,0);
+  return { map: canvasTex(c,true,1/4.8,1/2.4), normal: canvasTex(normalFromHeight(hgt,W,H,2.2),false,1/4.8,1/2.4) };
+}
+// Empedrado de adarves, plataformas y rampas
+function paveTextures(){
+  const W=512, S=3.2, PX=W/S, cs=0.22*PX; const n=Math.round(W/cs); const csz=W/n;
+  const r=rng(31), pts=[]; for(let j=0;j<n;j++) for(let i=0;i<n;i++) pts.push([ (i+0.2+0.6*r())*csz, (j+0.2+0.6*r())*csz, r() ]);
+  const nz=makeNoise(41); const hgt=new Float32Array(W*W);
+  const c=document.createElement('canvas'); c.width=c.height=W; const g=c.getContext('2d'); const im=g.createImageData(W,W);
+  const A=hexRGB(COLX.piedra_coralina_limpia), B=hexRGB(COLX.piedra_meteorizada_media);
+  for(let y=0;y<W;y++) for(let x=0;x<W;x++){
+    const ci=Math.floor(x/csz), cj=Math.floor(y/csz); let d1=1e9,d2=1e9,best=null;
+    for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ const ii=(ci+di+n)%n, jj=(cj+dj+n)%n; const p=pts[jj*n+ii]; const px=p[0]+(ci+di-ii)*csz, py=p[1]+(cj+dj-jj)*csz; const d=Math.hypot(x-px,y-py); if(d<d1){d2=d1;d1=d;best=p;} else if(d<d2) d2=d; }
+    const edge=d2-d1, k=clamp(best[2]*0.8+fbm(nz,x/W*8,y/W*8,8,8,2)*0.6,0,1);
+    const m=sstep(1.5,6,edge);
+    const i=(y*W+x)*4; const sh=0.62+0.38*m;
+    im.data[i]=lerp(A[0],B[0],k)*sh*0.92; im.data[i+1]=lerp(A[1],B[1],k)*sh*0.9; im.data[i+2]=lerp(A[2],B[2],k)*sh*0.86; im.data[i+3]=255;
+    hgt[y*W+x]=m*(0.7+0.3*(1-d1/csz));
+  }
+  g.putImageData(im,0,0);
+  return { map: canvasTex(c,true,1/S,1/S), normal: canvasTex(normalFromHeight(hgt,W,W,1.6),false,1/S,1/S) };
+}
+// Enlucido (Las Bóvedas, Torre del Reloj): blanco con manchas; el color ocre lo da el material (JSON)
+function stuccoTexture(){
+  const W=512,S=4; const nz=makeNoise(53); const c=document.createElement('canvas'); c.width=c.height=W; const g=c.getContext('2d'); const im=g.createImageData(W,W);
+  for(let y=0;y<W;y++) for(let x=0;x<W;x++){ const v=0.9+0.12*fbm(nz,x/W*6,y/W*6,6,6,4)-0.06*Math.max(0,fbm(nz,x/W*24,y/W*24,24,24,2)); const i=(y*W+x)*4; im.data[i]=im.data[i+1]=im.data[i+2]=clamp(v,0,1)*255; im.data[i+3]=255; }
+  g.putImageData(im,0,0); return canvasTex(c,true,1/S,1/S);
+}
+// Teja española (tendales): canalones en hileras
+function tileTexture(){
+  const W=512,S=2; const c=document.createElement('canvas'); c.width=c.height=W; const g=c.getContext('2d'); const im=g.createImageData(W,W); const nz=makeNoise(61);
+  const base=[164,86,58]; // APROXIMADO: color de la teja (no consta en el JSON)
+  for(let y=0;y<W;y++) for(let x=0;x<W;x++){ const u=(x/W*S)/0.25, v=(y/W*S)/0.40; const fx=u-Math.floor(u), fy=v-Math.floor(v);
+    const barrel=0.55+0.45*Math.sin(fx*Math.PI); const lap=fy<0.12?0.65:1; const nn=0.85+0.25*fbm(nz,x/W*16,y/W*16,16,16,2);
+    const k=barrel*lap*nn; const i=(y*W+x)*4; im.data[i]=base[0]*k; im.data[i+1]=base[1]*k; im.data[i+2]=base[2]*k; im.data[i+3]=255; }
+  g.putImageData(im,0,0); return canvasTex(c,true,1/S,1/S);
+}
+function groundTexture(){
+  const W=512,S=16; const nz=makeNoise(71); const c=document.createElement('canvas'); c.width=c.height=W; const g=c.getContext('2d'); const im=g.createImageData(W,W);
+  for(let y=0;y<W;y++) for(let x=0;x<W;x++){ const a=fbm(nz,x/W*8,y/W*8,8,8,4), b=fbm(nz,x/W*40,y/W*40,40,40,2); const k=clamp(0.5+a,0,1);
+    const R=lerp(206,178,k)+b*26, G=lerp(194,170,k)+b*24, B=lerp(168,142,k)+b*20; const i=(y*W+x)*4; im.data[i]=R; im.data[i+1]=G; im.data[i+2]=B; im.data[i+3]=255; }
+  g.putImageData(im,0,0); return canvasTex(c,true,1/S,1/S);
+}
+function glowTexture(){ const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d'); const gr=g.createRadialGradient(64,64,0,64,64,64); gr.addColorStop(0,'rgba(255,190,110,1)'); gr.addColorStop(0.35,'rgba(255,160,80,.45)'); gr.addColorStop(1,'rgba(255,140,60,0)'); g.fillStyle=gr; g.fillRect(0,0,128,128); const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t; }
+function clockTexture(){
+  const c=document.createElement('canvas'); c.width=c.height=256; const g=c.getContext('2d');
+  g.fillStyle='#f4efe2'; g.beginPath(); g.arc(128,128,124,0,Math.PI*2); g.fill();
+  g.lineWidth=7; g.strokeStyle='#2b2620'; g.beginPath(); g.arc(128,128,120,0,Math.PI*2); g.stroke();
+  g.lineWidth=2; g.beginPath(); g.arc(128,128,82,0,Math.PI*2); g.stroke();
+  const R=['XII','I','II','III','IIII','V','VI','VII','VIII','IX','X','XI'];
+  g.fillStyle='#2b2620'; g.font='bold 22px Georgia, serif'; g.textAlign='center'; g.textBaseline='middle';
+  for(let i=0;i<12;i++){ const a=i/12*Math.PI*2; g.save(); g.translate(128+Math.sin(a)*100,128-Math.cos(a)*100); g.rotate(a); g.fillText(R[i],0,0); g.restore(); }
+  for(let i=0;i<60;i++){ const a=i/60*Math.PI*2; const r0=i%5?112:106; g.beginPath(); g.moveTo(128+Math.sin(a)*r0,128-Math.cos(a)*r0); g.lineTo(128+Math.sin(a)*117,128-Math.cos(a)*117); g.lineWidth=i%5?1:3; g.stroke(); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+
+/* =====================================================================
+   MATERIALES (colores del JSON) + shaders con pátina y luz nocturna
+   ===================================================================== */
+const U = { night:{value:0}, time:{value:0} };
+const GLSL_NOISE = `
+float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.0-2.0*f);
+  return mix(mix(h21(i),h21(i+vec2(1,0)),u.x), mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),u.x), u.y); }`;
+function patchWorld(sh){
+  sh.vertexShader = 'varying vec3 vWPos;\nvarying vec3 vWNor;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+    vec4 wp_ = vec4(transformed,1.0);
+    vec3 wn_ = objectNormal;
+    #ifdef USE_INSTANCING
+      wp_ = instanceMatrix * wp_; wn_ = mat3(instanceMatrix) * wn_;
+    #endif
+    vWPos = (modelMatrix * wp_).xyz; vWNor = normalize(mat3(modelMatrix) * wn_);`);
+  sh.fragmentShader = 'varying vec3 vWPos;\nvarying vec3 vWNor;\nuniform float uNight;\n' + GLSL_NOISE + '\n' + sh.fragmentShader;
+  sh.uniforms.uNight = U.night;
+}
+let TEX;
+function stoneMat(opts={}){
+  const m=new THREE.MeshStandardMaterial({ map:TEX.stone.map, normalMap:TEX.stone.normal, normalScale:new THREE.Vector2(1.1,1.1), roughness:0.93, metalness:0, side:opts.side||THREE.FrontSide });
+  const patina=new THREE.Color(COLX.patina_biologica_oscura);
+  m.onBeforeCompile = sh=>{ patchWorld(sh); sh.uniforms.uPatina={value:patina};
+    sh.fragmentShader = 'uniform vec3 uPatina;\n'+sh.fragmentShader
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        float nA = vnoise(vWPos.xz*0.45 + vWPos.y*0.33);
+        float nB = vnoise(vWPos.xz*0.055 + vec2(vWPos.y*0.04));
+        float low = 1.0 - smoothstep(0.1, 1.4 + 2.2*nA, vWPos.y);          // pátina oscura en zonas bajas
+        diffuseColor.rgb *= 0.80 + 0.40*nB;
+        diffuseColor.rgb = mix(diffuseColor.rgb, uPatina, clamp(low*(0.55+0.45*nA),0.0,0.88));
+        float streak = smoothstep(0.62,0.95,vnoise(vec2(dot(vWPos.xz,vec2(0.71,0.71))*2.6, vWPos.y*0.08)));
+        diffuseColor.rgb *= 1.0 - 0.18*streak*(1.0-abs(vWNor.y));`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance += uNight * vec3(1.0,0.56,0.24) * 0.55 * diffuseColor.rgb * (1.0 - smoothstep(0.0, 13.0, vWPos.y)) * (1.0-0.8*abs(vWNor.y));`);
+  };
+  m.customProgramCacheKey=()=>'stone'+(opts.side||0);
+  return m;
+}
+function stuccoMat(hex){
+  const m=new THREE.MeshStandardMaterial({ color:new THREE.Color(hex), map:TEX.stucco, roughness:0.88 });
+  m.onBeforeCompile = sh=>{ patchWorld(sh); sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+     float lo = 1.0 - smoothstep(0.0, 1.1, vWPos.y); diffuseColor.rgb *= 1.0 - 0.35*lo*vnoise(vWPos.xz*1.3);`)
+     .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+     totalEmissiveRadiance += uNight * vec3(1.0,0.6,0.28) * 0.45 * diffuseColor.rgb * (1.0 - smoothstep(0.0, 16.0, vWPos.y));`); };
+  m.customProgramCacheKey=()=>'stucco'+hex;
+  return m;
+}
+function houseMat(){
+  const m=new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.9 });
+  m.onBeforeCompile = sh=>{ patchWorld(sh); sh.fragmentShader = sh.fragmentShader
+    .replace('#include <color_fragment>', `#include <color_fragment>
+      float wall_ = 1.0 - step(0.5, abs(vWNor.y));
+      vec2 tg_ = normalize(vec2(-vWNor.z, vWNor.x) + 1e-5);
+      float a_ = dot(vWPos.xz, tg_);
+      float fl_ = floor(vWPos.y/3.4), fy_ = vWPos.y - fl_*3.4;
+      float cell_ = floor(a_/3.0), fa_ = fract(a_/3.0);
+      float isDoor_ = step(fl_,0.5) * step(0.5, h21(vec2(cell_, 7.0)));
+      float win_ = wall_ * step(0.32,fa_)*step(fa_,0.68) * mix(step(0.95,fy_)*step(fy_,2.6), step(fy_,2.75), isDoor_);
+      float glow_ = step(0.62, h21(vec2(cell_*1.37+fl_*11.0, floor(dot(vWPos.xz, vec2(tg_.y,-tg_.x))*0.33))));
+      diffuseColor.rgb *= 0.9 + 0.16*vnoise(vWPos.xz*0.9 + vWPos.y*1.1);
+      diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.17,0.13,0.09), vec3(0.20,0.27,0.20), step(0.5,h21(vec2(cell_,fl_)))), win_);
+      diffuseColor.rgb *= mix(1.0, 0.78, wall_*(1.0-step(0.45, vWPos.y)));`)
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      totalEmissiveRadiance += win_ * glow_ * uNight * vec3(1.0,0.55,0.22) * 1.25;`); };
+  m.customProgramCacheKey=()=>'house';
+  return m;
+}
+function roofMat(){
+  const m=new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.85 });
+  m.onBeforeCompile = sh=>{ patchWorld(sh); sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      vec2 sl_ = normalize(vWNor.xz + 1e-5); vec2 rd_ = vec2(-sl_.y, sl_.x);
+      float c_ = dot(vWPos.xz, rd_), d_ = dot(vWPos.xz, sl_);
+      float barrel_ = 0.72 + 0.28*abs(sin(c_*3.14159/0.25));
+      float course_ = mix(0.78, 1.0, step(0.14, fract(d_/0.42)));
+      diffuseColor.rgb *= mix(1.0, barrel_*course_, step(0.15, abs(vWNor.y))) * (0.85+0.3*vnoise(vWPos.xz*0.25));`); };
+  m.customProgramCacheKey=()=>'roof';
+  return m;
+}
+
+/* =====================================================================
+   buildWallProfile: perfil real (escarpa en talud 1:5.5, cordón magistral,
+   parapeto con plano de fuego, banqueta, adarve, terraplén) extruido a lo
+   largo de la polilínea con ingletes.
+   ===================================================================== */
+function buildWallProfile(kind, H, T){
+  const A = H + CORD_R; // nivel de adarve = remate del cordón
+  if(kind==='base'){
+    const P=[]; const cx=CORD_PROJ-CORD_R;
+    P.push({u:H/TALUD, y:0, m:'stone'});                                     // pie de la escarpa
+    P.push({u:CORD_R/TALUD, y:H-CORD_R, m:'stone'});                          // arranque del cordón
+    for(let i=1;i<=6;i++){ const a=-Math.PI/2+Math.PI*i/6; P.push({u:cx+CORD_R*Math.cos(a), y:H+CORD_R*Math.sin(a), m:'stone', sm:i<6}); } // bocel semicircular
+    P.push({u:-(PAR_THK+BANQ_W), y:A, m:'pave'});                             // bajo parapeto (oculto)
+    P.push({u:-T, y:A, m:'stone'});                                           // adarve / terraplén
+    P.push({u:-T, y:0, m:'stone'});                                           // muro de contención interior
+    return P;
+  }
+  if(kind==='parapet'){ // perfil cerrado del parapeto (merlón)
+    return [ {u:0,y:A,m:'stone'}, {u:0,y:A+PAR_EXT,m:'stone'}, {u:-PAR_THK,y:A+BANQ_H+PAR_INT,m:'stone'},
+             {u:-PAR_THK,y:A+BANQ_H,m:'stone'}, {u:-PAR_THK-BANQ_W,y:A+BANQ_H,m:'stone'}, {u:-PAR_THK-BANQ_W,y:A,m:'stone'} ];
+  }
+  if(kind==='sill'){ // derrame inferior de la tronera (APROXIMADO: 0.75–0.95 m sobre el adarve)
+    return [ {u:0,y:A,m:'stone'}, {u:0,y:A+0.75,m:'stone'}, {u:-PAR_THK,y:A+0.95,m:'stone'}, {u:-PAR_THK,y:A,m:'stone'} ];
+  }
+}
+function preparePath(pts, closed=false){
+  const N=pts.length, SN=closed?N:N-1, seg=[], s=[0];
+  for(let j=0;j<SN;j++){ const a=pts[j], b=pts[(j+1)%N]; const de=b.e-a.e, dn=b.n-a.n, L=Math.hypot(de,dn)||1e-6; seg.push({te:de/L,tn:dn/L,ne:-dn/L,nn:de/L,L}); s.push(s[j]+L); }
+  const mit=[];
+  for(let i=0;i<N;i++){
+    let p = closed ? seg[(i-1+SN)%SN] : seg[i-1], q = closed ? seg[i%SN] : seg[i];
+    if(!p) p=q; if(!q) q=p;
+    let me=p.ne+q.ne, mn=p.nn+q.nn; const ml=Math.hypot(me,mn); if(ml<1e-6){me=q.ne;mn=q.nn;} else {me/=ml;mn/=ml;}
+    const c=me*q.ne+mn*q.nn; mit.push({me,mn,sc:1/Math.max(0.3,c), smooth:(p.ne*q.ne+p.nn*q.nn)>Math.cos(24*Math.PI/180), te:q.te, tn:q.tn});
+  }
+  return {pts,seg,s,mit,closed,N,total:s[s.length-1]};
+}
+function segIndex(P,s){ let lo=0,hi=P.seg.length-1; while(lo<hi){ const m=(lo+hi+1)>>1; if(P.s[m]<=s) lo=m; else hi=m-1; } return lo; }
+function ringAt(P,s){
+  const j=segIndex(P,s), sg=P.seg[j], a=P.pts[j], b=P.pts[(j+1)%P.N]; const f=clamp((s-P.s[j])/sg.L,0,1);
+  return {e:lerp(a.e,b.e,f), n:lerp(a.n,b.n,f), me:sg.ne, mn:sg.nn, sc:1, s, attr:a, v:-1, te:sg.te, tn:sg.tn};
+}
+function ringV(P,i,s){ const p=P.pts[i], m=P.mit[i]; return {e:p.e,n:p.n,me:m.me,mn:m.mn,sc:m.sc,s:s??P.s[i],attr:p,v:i,te:m.te,tn:m.tn}; }
+function pointAt(P,s,u){ const r=ringAt(P,s); return [r.e+r.me*u, r.n+r.mn*u]; }
+function vtxPoint(P,i,u){ const p=P.pts[i], m=P.mit[i]; return [p.e+m.me*u*m.sc, p.n+m.mn*u*m.sc]; }
+function extrude(P, s0, s1, kind, opts={}){
+  let rings;
+  if(opts.fullClosed){ rings=[]; for(let i=0;i<P.N;i++) rings.push(ringV(P,i)); rings.push(ringV(P,0,P.total)); }
+  else { rings=[ringAt(P,s0)]; for(let i=0;i<P.N;i++) if(P.s[i]>s0+1e-4 && P.s[i]<s1-1e-4) rings.push(ringV(P,i)); rings.push(ringAt(P,s1)); }
+  if(rings.length<2) return;
+  const closedProf = kind!=='base';
+  const profs = rings.map(r=>buildWallProfile(kind, r.attr.H, r.attr.T));
+  const K=profs[0].length, EC=closedProf?K:K-1;
+  const fS=u=>Math.max(0,1+u/PAR_THK);
+  const pos = rings.map((r,ri)=>profs[ri].map(p=>{ let sh=0;
+    if(ri===0 && opts.shiftStart) sh=opts.shiftStart*fS(p.u);
+    if(ri===rings.length-1 && opts.shiftEnd) sh=opts.shiftEnd*fS(p.u);
+    return [r.e+r.me*p.u*r.sc+r.te*sh, p.y, -(r.n+r.mn*p.u*r.sc+r.tn*sh)]; }));
+  // normales 2D del perfil
+  const pn = profs.map(pr=>{ const en=[]; for(let k=0;k<EC;k++){ const a=pr[k], b=pr[(k+1)%K]; let nu=b.y-a.y, ny=-(b.u-a.u); const L=Math.hypot(nu,ny)||1; en.push([nu/L,ny/L]); }
+    return {edge:en, pt:pr.map((p,k)=>{ if(!p.sm) return null; const e0=en[(k-1+EC)%EC], e1=en[k%EC]; const x=e0[0]+e1[0], y=e0[1]+e1[1], L=Math.hypot(x,y)||1; return [x/L,y/L]; })}; });
+  const vc = profs.map(pr=>{ const v=[0]; for(let k=1;k<=K;k++){ const a=pr[k-1], b=pr[k%K]; v.push(v[k-1]+Math.hypot(b.u-a.u,b.y-a.y)); } return v; });
+  for(let r=0;r<rings.length-1;r++){
+    const R0=rings[r], R1=rings[r+1]; if(R1.s-R0.s<1e-5 && !opts.fullClosed) continue;
+    const j=segIndex(P,(R0.s+R1.s)/2 % (P.total+1e-9)), sg=P.seg[Math.min(j,P.seg.length-1)];
+    const nA=(R0.v>=0 && P.mit[R0.v].smooth)?[R0.me,R0.mn]:[sg.ne,sg.nn];
+    const nB=(R1.v>=0 && P.mit[R1.v].smooth)?[R1.me,R1.mn]:[sg.ne,sg.nn];
+    for(let k=0;k<EC;k++){
+      const k2=(k+1)%K; const mat=profs[r][k].m; const G=BUCKET[mat].geo;
+      const n2=(ri,kk,side)=>{ const q=pn[ri]; const v=q.pt[kk] && (side? true:true) ? (q.pt[kk]||q.edge[k]) : q.edge[k]; return v; };
+      const N=(np,nPath)=>[nPath[0]*np[0], np[1], -nPath[1]*np[0]];
+      const a=pos[r][k], c=pos[r][k2], b=pos[r+1][k], d=pos[r+1][k2];
+      const na=N(pn[r].pt[k]||pn[r].edge[k],nA), nc=N(pn[r].pt[k2]||pn[r].edge[k],nA), nb=N(pn[r+1].pt[k]||pn[r+1].edge[k],nB), nd=N(pn[r+1].pt[k2]||pn[r+1].edge[k],nB);
+      const ua=[R0.s,vc[r][k]], uc=[R0.s,vc[r][k+1]], ub=[R1.s,vc[r+1][k]], ud=[R1.s,vc[r+1][k+1]];
+      G.tri(a,c,b,na,nc,nb,ua,uc,ub); G.tri(b,c,d,nb,nc,nd,ub,uc,ud);
+    }
+  }
+  if(closedProf && !opts.fullClosed){ // tapas (caras laterales de merlones)
+    for(const [ri,sgn] of [[0,-1],[rings.length-1,1]]){
+      const R=rings[ri], pr=profs[ri], ps=pos[ri]; const tri=THREE.ShapeUtils.triangulateShape(pr.map(p=>new THREE.Vector2(p.u,p.y)),[]);
+      const nrm=[R.te*sgn,0,-R.tn*sgn]; const G=BUCKET.stone.geo;
+      for(const t of tri){ let [i0,i1,i2]=t; const A=ps[i0],B=ps[i1],C=ps[i2];
+        const cr=[(B[1]-A[1])*(C[2]-A[2])-(B[2]-A[2])*(C[1]-A[1]),(B[2]-A[2])*(C[0]-A[0])-(B[0]-A[0])*(C[2]-A[2]),(B[0]-A[0])*(C[1]-A[1])-(B[1]-A[1])*(C[0]-A[0])];
+        if(cr[0]*nrm[0]+cr[1]*nrm[1]+cr[2]*nrm[2]<0){ const tmp=i1;i1=i2;i2=tmp; }
+        G.tri(ps[i0],ps[i1],ps[i2],nrm,nrm,nrm,[pr[i0].u,pr[i0].y],[pr[i1].u,pr[i1].y],[pr[i2].u,pr[i2].y]); }
+    }
+  }
+}
+// Muro vertical (faldón) a lo largo de un polígono cerrado EN
+function skirt(poly, y0, y1, key='stone'){
+  const cw = polyArea(poly)<0; const G=BUCKET[key].geo; let s=0;
+  for(let i=0;i<poly.length;i++){ const a=poly[i], b=poly[(i+1)%poly.length]; const de=b[0]-a[0], dn=b[1]-a[1], L=Math.hypot(de,dn); if(L<1e-4) continue;
+    let ne=-dn/L, nn=de/L; if(!cw){ne=-ne;nn=-nn;} // exterior del polígono
+    const nr=[ne,0,-nn]; const A0=[a[0],y0,-a[1]],A1=[a[0],y1,-a[1]],B0=[b[0],y0,-b[1]],B1=[b[0],y1,-b[1]];
+    // orientar
+    const t=[de/L,0,-dn/L]; const cr=[t[1]*0-0, 0, 0]; // (dummy)
+    const out=[A0,B0,A1,B1];
+    const n1=new THREE.Vector3().crossVectors(new THREE.Vector3(B0[0]-A0[0],B0[1]-A0[1],B0[2]-A0[2]), new THREE.Vector3(A1[0]-A0[0],A1[1]-A0[1],A1[2]-A0[2]));
+    if(n1.x*nr[0]+n1.z*nr[2]>0){ G.tri(A0,B0,A1,nr,nr,nr,[s,y0],[s+L,y0],[s,y1]); G.tri(B0,B1,A1,nr,nr,nr,[s+L,y0],[s+L,y1],[s,y1]); }
+    else { G.tri(A0,A1,B0,nr,nr,nr,[s,y0],[s,y1],[s+L,y0]); G.tri(B0,A1,B1,nr,nr,nr,[s+L,y0],[s,y1],[s+L,y1]); }
+    s+=L;
+  }
+}
+function flatPoly(poly, y, key='pave'){ const sh=new THREE.Shape(poly.map(p=>new THREE.Vector2(p[0],p[1]))); const g=new THREE.ShapeGeometry(sh); g.rotateX(-Math.PI/2); g.translate(0,y,0); add(key,g); }
+// Rampa (cuña) sobre un cuadrilátero EN con alturas por vértice
+function wedge(q, hs, base){
+  const top=BUCKET.pave.geo, sd=BUCKET.stone.geo;
+  const P=q.map((p,i)=>[p[0],hs[i],-p[1]]); const B=q.map(p=>[p[0],base,-p[1]]);
+  const n=new THREE.Vector3().crossVectors(new THREE.Vector3(...P[1]).sub(new THREE.Vector3(...P[0])), new THREE.Vector3(...P[2]).sub(new THREE.Vector3(...P[0]))).normalize();
+  const up = n.y>0; const nn=up?[n.x,n.y,n.z]:[-n.x,-n.y,-n.z];
+  if(up){ top.tri(P[0],P[1],P[2],nn,nn,nn,[q[0][0],q[0][1]],[q[1][0],q[1][1]],[q[2][0],q[2][1]]); top.tri(P[0],P[2],P[3],nn,nn,nn,[q[0][0],q[0][1]],[q[2][0],q[2][1]],[q[3][0],q[3][1]]); }
+  else { top.tri(P[0],P[2],P[1],nn,nn,nn,[q[0][0],q[0][1]],[q[2][0],q[2][1]],[q[1][0],q[1][1]]); top.tri(P[0],P[3],P[2],nn,nn,nn,[q[0][0],q[0][1]],[q[3][0],q[3][1]],[q[2][0],q[2][1]]); }
+  const cw=polyArea(q)<0;
+  for(let i=0;i<4;i++){ const j=(i+1)%4; if(Math.max(hs[i],hs[j])-base<0.02) continue;
+    const de=q[j][0]-q[i][0], dn=q[j][1]-q[i][1], L=Math.hypot(de,dn); let ne=-dn/L, nnn=de/L; if(!cw){ne=-ne;nnn=-nnn;} const nr=[ne,0,-nnn];
+    const a=B[i],b=B[j],c=P[i],d=P[j];
+    const v=new THREE.Vector3().crossVectors(new THREE.Vector3(b[0]-a[0],0,b[2]-a[2]), new THREE.Vector3(0,1,0));
+    if(v.x*nr[0]+v.z*nr[2]>0){ sd.tri(a,b,c,nr,nr,nr,[0,base],[L,base],[0,hs[i]]); sd.tri(b,d,c,nr,nr,nr,[L,base],[L,hs[j]],[0,hs[i]]); }
+    else { sd.tri(a,c,b,nr,nr,nr,[0,base],[0,hs[i]],[L,base]); sd.tri(b,c,d,nr,nr,nr,[L,base],[0,hs[i]],[L,hs[j]]); }
+  }
+  // región de recorrido con altura interpolada
+  const p0=q[0],p1=q[1],p3=q[3];
+  const ax=[p1[0]-p0[0],p1[1]-p0[1]], ay=[p3[0]-p0[0],p3[1]-p0[1]]; const la=ax[0]*ax[0]+ax[1]*ax[1], lb=ay[0]*ay[0]+ay[1]*ay[1];
+  addRegion(q, (e,n)=>{ const dx=e-p0[0],dy=n-p0[1]; const s=clamp((dx*ax[0]+dy*ax[1])/la,0,1), t=clamp((dx*ay[0]+dy*ay[1])/lb,0,1);
+    return lerp(lerp(hs[0],hs[1],s), lerp(hs[3],hs[2],s), t); }, 'ramp');
+}
+
+/* =====================================================================
+   buildBastion: contorno en planta según "forma" del JSON
+   (pentagonal / semibaluarte / tenaza) con caras, flancos y gola del JSON.
+   ===================================================================== */
+const INST = { garitas:[], cannons:[], lamps:[], pools:[], labels:[] };
+const BASTIONS = {};
+function bastionOutline(it, t, n, P){
+  const b=it.data, g=b.geometria_planta; const G=g.ancho_gola_m.valor, F=g.longitud_flancos_m.valor, C=g.longitud_caras_m.valor;
+  let loc=[]; let sal=-1;
+  if(b.forma==='pentagonal'){
+    const e=it.orejon||0; const half=G/2+e; const h=Math.sqrt(Math.max(C*C-half*half, (C*0.5)**2));
+    loc=[[-G/2,0],[-G/2,F]]; if(e) loc.push([-G/2-e,F]); loc.push([0,F+h]); sal=loc.length-1; if(e) loc.push([G/2+e,F]); loc.push([G/2,F],[G/2,0]);
+  } else { // semibaluarte (APROXIMADO: un flanco + una cara que cubre toda la gola)
+    const s=it.side||1; const h=C>G?Math.sqrt(C*C-G*G):C*0.5;
+    if(s<0){ // flanco del lado del elemento anterior
+      loc=[[-G/2,0]];
+      if(it.curved){ for(let k=1;k<=8;k++){ loc.push([-G/2+2.0*Math.sin(Math.PI*k/8), F*k/8]); } } // flanco curvo (Santa Teresa); flecha 2.0 m APROXIMADO
+      else loc.push([-G/2,F]);
+      loc.push([G/2,F+h]); sal=loc.length-1; loc.push([G/2,0]);
+    } else {
+      loc=[[-G/2,0],[-G/2,F+h]]; sal=1;
+      if(it.curved){ for(let k=8;k>=1;k--) loc.push([G/2-2.0*Math.sin(Math.PI*k/8), F*k/8+0]); loc.splice(2,0); }
+      else loc.push([G/2,F]);
+      loc.push([G/2,0]);
+    }
+  }
+  const pts = loc.map(([a,bb],i)=>({e:P.e+t.e*a+n.e*bb, n:P.n+t.n*a+n.n*bb, salient:i===sal}));
+  return {pts, loc, G, F, C, sal};
+}
+function bastionHeights(it){ const crest=it.data.altura_m.valor; const H=crest-CREST; return {H, A:H+CORD_R, crest}; }
+
+/* =====================================================================
+   Cadena de murallas (cortinas + baluartes + puertas)
+   ===================================================================== */
+const CHAINS=[];
+function buildChain(items, cid){
+  items.forEach(it=>{ const p=projectCoords(it.lat,it.lon); it.e=p.e; it.n=p.n; if(it.src){ it.data=bd(it.src); } });
+  const tangent=(i)=>{ const a=items[Math.max(0,i-1)], b=items[Math.min(items.length-1,i+1)]; const de=b.e-a.e, dn=b.n-a.n, L=Math.hypot(de,dn); return {e:de/L,n:dn/L}; };
+  const runs=[]; let cur={kind:'curtain',pts:[]}; const gates=[];
+  items.forEach((it,i)=>{
+    const t=tangent(i), n={e:-t.n, n:t.e};
+    if(it.type==='bastion'){
+      let O=bastionOutline(it,t,n,it);
+      if(it.lock){ // centroide del baluarte = dato OSM del JSON
+        const poly=O.pts.map(p=>[p.e,p.n]); const c=centroid(poly); it.e+=SC_CENTROID.e-c[0]; it.n+=SC_CENTROID.n-c[1]; O=bastionOutline(it,t,n,it); }
+      const hh=bastionHeights(it); it.H=hh.H; it.A=hh.A; it.t=t; it.nrm=n; it.O=O;
+      cur.pts.push(O.pts[0]); cur.H=it.cH; cur.hd=!!it.chd; cur.next=it;
+      if(cur.pts.length>=2) runs.push(cur);
+      runs.push({kind:'bastion', pts:O.pts, H:it.H, hd:!!it.hd, ref:it});
+      cur={kind:'curtain', pts:[O.pts[O.pts.length-1]], prev:it};
+      BASTIONS[it.id]=it;
+    } else {
+      let p={e:it.e,n:it.n};
+      if(it.type==='start'){ const nx=items[i+1]; const de=nx.e-it.e, dn=nx.n-it.n, L=Math.hypot(de,dn); p={e:it.e+de/L*it.offset, n:it.n+dn/L*it.offset}; it.t={e:de/L,n:dn/L}; }
+      p.gate=it; cur.pts.push(p); if(it.type==='gate'||it.type==='breach') gates.push(it);
+    }
+  });
+  // aplanar a vértices con escalones de altura en las uniones
+  const verts=[];
+  runs.forEach((run,ri)=>{ const T = run.kind==='curtain'?T_CURT:T_BAST;
+    run.pts.forEach((p,k)=>{
+      if(k===0 && verts.length){ const last=verts[verts.length-1];
+        if(Math.hypot(last.e-p.e,last.n-p.n)<1e-3){ const q=run.pts[1]; const de=q.e-p.e, dn=q.n-p.n, L=Math.hypot(de,dn);
+          verts.push({e:p.e+de/L*0.05, n:p.n+dn/L*0.05, H:run.H, T, hd:run.hd, run:ri, step:true}); run.i0=verts.length-1; return; } }
+      verts.push({e:p.e,n:p.n,H:run.H,T,hd:run.hd,run:ri,salient:p.salient,gate:p.gate}); if(k===0) run.i0=verts.length-1;
+    });
+    run.i1=verts.length-1;
+  });
+  const P=preparePath(verts,false);
+  runs.forEach(r=>{ r.s0=P.s[r.i0]; r.s1=P.s[r.i1]; });
+  gates.forEach(g=>{ const i=verts.findIndex(v=>v.gate===g); g.s=P.s[i]; g.vi=i; });
+  const chain={id:cid, items, runs, P, gates}; CHAINS.push(chain);
+  return chain;
+}
+function gaps(chain, which){ // intervalos sin muralla base
+  return chain.gates.filter(g=> which==='base' ? true : g.type==='breach').map(g=>{ const w=g.type==='gate'? g.width+1.6 : g.width; return [g.s-w/2, g.s+w/2]; });
+}
+function subtract(range, holes){ let out=[range]; for(const h of holes){ const nx=[]; for(const [a,b] of out){ if(h[1]<=a||h[0]>=b){nx.push([a,b]);continue;} if(h[0]>a) nx.push([a,h[0]]); if(h[1]<b) nx.push([h[1],b]); } out=nx; } return out.filter(([a,b])=>b-a>0.05); }
+
+function buildChainGeometry(chain){
+  const P=chain.P;
+  // 1) cuerpo base (escarpa + cordón + adarve + terraplén)
+  for(const [a,b] of subtract([0,P.total], gaps(chain,'base'))) extrude(P,a,b,'base');
+  // 2) troneras + merlones
+  const emb=[]; const gz=gaps(chain,'base').map(([a,b])=>[a-2.5,b+2.5]);
+  for(let j=0;j<P.seg.length;j++){ const sg=P.seg[j], v=P.pts[j]; if(sg.L<5) continue; const run=chain.runs[v.run]; if(!run) continue;
+    const sp = run.kind==='bastion' ? (run.hd?6.5:9) : (run.hd?11:17);  // APROXIMADO: separación entre troneras
+    const a=P.s[j]+2.8, b=P.s[j+1]-2.8, len=b-a; if(len<1) continue; const cnt=Math.max(1,Math.floor(len/sp));
+    for(let k=0;k<cnt;k++){ const s=a+len*(k+0.5)/cnt; if(gz.some(([x,y])=>s>x&&s<y)) continue; emb.push({s,j,hd:run.hd,run}); } }
+  chain.emb=emb;
+  for(const e of emb){ if(e.run.kind==='curtain' && e.run.hd){ const r=ringAt(P,e.s); INST.cannons.push({e:r.e-r.me*4.1, n:r.n-r.mn*4.1, y:e.run.H+CORD_R, de:r.me, dn:r.mn}); } }
+  for(const [a,b] of subtract([0,P.total], gaps(chain,'breach'))){
+    const E=emb.filter(e=>e.s>a+1&&e.s<b-1).sort((x,y)=>x.s-y.s);
+    let s=a, prevEmb=false;
+    for(const e of E){
+      extrude(P,s,e.s-0.5,'parapet',{shiftStart:prevEmb?0.7:0, shiftEnd:-0.7});
+      extrude(P,e.s-0.5,e.s+0.5,'sill',{shiftStart:-0.7, shiftEnd:0.7});
+      s=e.s+0.5; prevEmb=true;
+    }
+    extrude(P,s,b,'parapet',{shiftStart:prevEmb?0.7:0});
+  }
+  // 3) regiones de recorrido del muro
+  for(let j=0;j<P.seg.length;j++){ const sg=P.seg[j]; if(sg.L<0.2) continue; const v=P.pts[j]; const A=v.H+CORD_R;
+    for(const [a,b] of subtract([P.s[j],P.s[j+1]], gaps(chain,'breach'))){
+      const q=(u0,u1)=>{ const r0=a===P.s[j]?null:ringAt(P,a), r1=b===P.s[j+1]?null:ringAt(P,b);
+        const p0=r0?[r0.e+r0.me*u0,r0.n+r0.mn*u0]:vtxPoint(P,j,u0), p1=r1?[r1.e+r1.me*u0,r1.n+r1.mn*u0]:vtxPoint(P,j+1,u0);
+        const p2=r1?[r1.e+r1.me*u1,r1.n+r1.mn*u1]:vtxPoint(P,j+1,u1), p3=r0?[r0.e+r0.me*u1,r0.n+r0.mn*u1]:vtxPoint(P,j,u1); return [p0,p1,p2,p3]; };
+      addRegion(q(v.H/TALUD+0.3,0), Infinity);
+      addRegion(q(0,-PAR_THK), Infinity);
+      addRegion(q(-PAR_THK,-PAR_THK-BANQ_W), A+BANQ_H);
+      if(v.T>T_BAST+0.1) addRegion(q(-PAR_THK-BANQ_W,-v.T), A);
+    }
+  }
+  // 4) baluartes: plataforma, gola, rampas, garitas, cañones, tendales, aljibes
+  for(const run of chain.runs){ if(run.kind!=='bastion') continue; buildBastion(chain, run); }
+  // 5) rampas de transición adarve <-> baluarte
+  chain.runs.forEach((run,ri)=>{ if(run.kind!=='curtain') return;
+    for(const [it, atEnd] of [[run.next,true],[run.prev,false]]){ if(!it || it.vacio) continue;
+      const Ac=run.H+CORD_R, Ab=it.A, d=Ab-Ac; if(Math.abs(d)<0.55) continue;
+      const L=clamp(Math.abs(d)*3.2,3,9);
+      if(d>0){ // rampa sobre el adarve de la cortina
+        const sj = atEnd ? run.s1 : run.s0; const sa = atEnd ? sj-L : sj+L;
+        const u0=-PAR_THK-BANQ_W-0.05, u1=-T_CURT+0.05;
+        const q=[pointAt(P,sa,u0), pointAt(P,sj-(atEnd?0.02:-0.02),u0), pointAt(P,sj-(atEnd?0.02:-0.02),u1), pointAt(P,sa,u1)];
+        wedge(q,[Ac,Ab,Ab,Ac],Ac);
+      } else { // rampa sobre la gola del baluarte
+        const {t,nrm}=it; const G=it.O.G; const a0 = atEnd ? -G/2 : G/2, a1 = atEnd ? -G/2+L : G/2-L;
+        const L2=(a,b)=>[it.e+t.e*a+nrm.e*b, it.n+t.n*a+nrm.n*b];
+        const b0=-PAR_THK-BANQ_W-0.05, b1=-T_CURT+0.05;
+        wedge([L2(a1,b0),L2(a0,b0),L2(a0,b1),L2(a1,b1)],[Ab,Ac,Ac,Ab],Ab);
+      }
+    }
+  });
+  // 6) faroles sobre el adarve de las cortinas
+  chain.runs.forEach(run=>{ if(run.kind!=='curtain') return; const len=run.s1-run.s0; const cnt=Math.floor(len/34);
+    for(let k=1;k<=cnt;k++){ const s=run.s0+len*k/(cnt+1); if(chain.gates.some(g=>Math.abs(g.s-s)<g.width)) continue; const p=pointAt(P,s,-run.pts.length*0-T_CURT+0.7); INST.lamps.push({e:p[0],n:p[1],y:run.H+CORD_R}); } });
+}
+
+function buildBastion(chain, run){
+  const it=run.ref, P=chain.P, O=it.O, {t,nrm}=it, A=it.A, H=it.H, b=it.data;
+  const L2=(a,bb)=>[it.e+t.e*a+nrm.e*bb, it.n+t.n*a+nrm.n*bb];
+  const outline=O.pts.map(p=>[p.e,p.n]);
+  const det=(b.detalles||'').toLowerCase();
+  if(it.vacio){ // "baluarte vacío": plaza a nivel del suelo (JSON, La Merced)
+    flatPoly(outline, 0.03, 'pave');
+  } else {
+    const poly=[...outline, L2(O.G/2,-T_CURT), L2(-O.G/2,-T_CURT)];
+    flatPoly(poly, A, 'pave'); skirt(poly, 0, A, 'stone');
+    addRegion(poly, A);
+    // rampa en la gola hacia la ciudad (JSON: "rampa en gola")
+    const a0=-O.G/2+0.8, a1=O.G/2-0.8, bb0=-T_CURT, bb1=-T_CURT-3.4; // ancho 3.4 m APROXIMADO
+    wedge([L2(a0,bb0),L2(a1,bb0),L2(a1,bb1),L2(a0,bb1)],[0.02,A,A,0.02],0);
+  }
+  // garitas donde el JSON las menciona
+  if(det.includes('garita')){ const i=run.i0+O.sal+(P.pts[run.i0].step?0:0); const vi=P.pts.findIndex(v=>v.salient && v.run===chain.runs.indexOf(run));
+    const p=P.pts[vi], m=P.mit[vi]; INST.garitas.push({e:p.e+m.me*0.55, n:p.n+m.mn*0.55, y:A, de:-m.me, dn:-m.mn}); }
+  // cañones en troneras (alto detalle)
+  if(run.hd && !it.vacio) for(const e of chain.emb.filter(e=>e.run===run)) { const r=ringAt(P,e.s); INST.cannons.push({e:r.e-r.me*4.1, n:r.n-r.mn*4.1, y:A, de:r.me, dn:r.mn}); }
+  // aljibes (JSON: Santo Domingo, San Francisco Javier, Santa Catalina)
+  if(det.includes('aljibe')){ const c=L2(0,O.F*0.45); const g=new THREE.CylinderGeometry(0.85,0.95,0.8,20,1,true); const g2=new THREE.CylinderGeometry(0.85,0.85,0.12,20); const g3=new THREE.CircleGeometry(0.72,20); g3.rotateX(-Math.PI/2);
+    add('stone', T(g,c[0],A+0.4,-c[1]), null, true); add('stone', T(g2,c[0],A+0.8,-c[1]), null, true); add('dark', T(g3,c[0],A+0.55,-c[1])); }
+  // tendales (JSON: Santa Catalina 1, San Lucas 2)
+  if(det.includes('tendal')){ const nT = det.includes('dos tendales') ? 2 : 1; for(let k=0;k<nT;k++){ const a = nT===1?0:(k?1:-1)*O.G*0.22; buildTendal(L2(a,O.F*0.62), t, A); } }
+  // etiqueta
+  const sp=outline[O.sal]; INST.labels.push({id:it.id, e:sp[0], n:sp[1], y:it.data.altura_m.valor+7});
+  // faroles en plataforma
+  if(!it.vacio){ const c=L2(0,-T_CURT+1.2); INST.lamps.push({e:c[0],n:c[1],y:A}); }
+}
+function buildTendal(c, t, A){ // cobertizo colonial: columnas de mampostería + cubierta de teja a cuatro aguas (dimensiones APROXIMADAS)
+  const w=9, d=5, hc=3.0, M=frameM(c[0],c[1],A,t.e,t.n);
+  for(const x of [-w/2+0.3,0,w/2-0.3]) for(const z of [-d/2+0.3,d/2-0.3]) { add('cal', T(box(0.45,hc,0.45),x,hc/2,z), M); add('cal', T(box(0.6,0.18,0.6),x,hc-0.09,z), M); }
+  add('wood', T(box(w,0.22,0.2),0,hc+0.11,-d/2+0.3),M); add('wood', T(box(w,0.22,0.2),0,hc+0.11,d/2-0.3),M);
+  add('tile', hipRoof(w+1.2,d+1.2,1.7), new THREE.Matrix4().multiplyMatrices(M,new THREE.Matrix4().makeTranslation(0,hc+0.22,0)));
+}
+function hipRoof(w,d,h){ // cubierta a cuatro aguas
+  const G=new Geo(); const x=w/2, z=d/2, r=Math.max(0,x-z);
+  const c=[[-x,0,-z],[x,0,-z],[x,0,z],[-x,0,z]], R0=[-r,h,0], R1=[r,h,0];
+  const face=(a,b,cc)=>{ const n=new THREE.Vector3().crossVectors(new THREE.Vector3(b[0]-a[0],b[1]-a[1],b[2]-a[2]),new THREE.Vector3(cc[0]-a[0],cc[1]-a[1],cc[2]-a[2])).normalize(); const nn=[n.x,n.y,n.z];
+    const uv=p=>Math.abs(n.x)>Math.abs(n.z)?[p[2],Math.hypot(p[0],p[1])]:[p[0],Math.hypot(p[2],p[1])]; G.tri(a,b,cc,nn,nn,nn,uv(a),uv(b),uv(cc)); };
+  face(c[0],R0,c[1]); face(c[1],R0,R1); face(c[2],c[1],R1); face(c[3],R1,R0); face(c[3],c[2],R1); face(c[0],c[3],R0);
+  return G.geometry();
+}
+
+/* =====================================================================
+   Puertas
+   ===================================================================== */
+function archShape(W, Hh, holes){ // holes: [{x, w, spring}] arcos de medio punto
+  const s=new THREE.Shape(); s.moveTo(-W/2,0); s.lineTo(W/2,0); s.lineTo(W/2,Hh); s.lineTo(-W/2,Hh); s.lineTo(-W/2,0);
+  for(const h of holes){ const p=new THREE.Path(); const r=h.w/2; p.moveTo(h.x-r,(h.y0||0)+0.001); p.lineTo(h.x-r,h.spring); p.absarc(h.x,h.spring,r,Math.PI,0,true); p.lineTo(h.x+r,(h.y0||0)+0.001); p.lineTo(h.x-r,(h.y0||0)+0.001); s.holes.push(p); }
+  return s;
+}
+function arcadeShape(W,Hh,arcs){ // contorno único: vanos de medio punto que llegan al suelo (sin agujeros)
+  const s=new THREE.Shape(); s.moveTo(-W/2,0);
+  for(const a of [...arcs].sort((x,y)=>x.x-y.x)){ const r=a.w/2; s.lineTo(a.x-r,0); s.lineTo(a.x-r,a.spring); s.absarc(a.x,a.spring,r,Math.PI,0,true); s.lineTo(a.x+r,0); }
+  s.lineTo(W/2,0); s.lineTo(W/2,Hh); s.lineTo(-W/2,Hh); s.lineTo(-W/2,0); return s;
+}
+function gateU(W,Hh,w,spring){ // bloque en U sobre el vano (el vano llega al suelo)
+  const s=new THREE.Shape(); const r=w/2; s.moveTo(-W/2,0); s.lineTo(-r,0); s.lineTo(-r,spring); s.absarc(0,spring,r,Math.PI,0,true); s.lineTo(r,0); s.lineTo(W/2,0); s.lineTo(W/2,Hh); s.lineTo(-W/2,Hh); s.lineTo(-W/2,0); return s;
+}
+function buildGates(chain){
+  const P=chain.P;
+  for(const g of chain.gates){
+    const r=ringV(P,g.vi); const v=P.pts[g.vi]; const A=v.H+CORD_R;
+    if(g.type==='gate'){ // Puerta de Santo Domingo (paso en esviaje) / Puerta de Santa Catalina
+      const W=g.width+1.6+2*T_CURT*Math.tan((g.skew||0)*Math.PI/180);
+      const geo=new THREE.ExtrudeGeometry(gateU(W,A,g.width,Math.min(3.4,A-2.2)),{depth:T_CURT,bevelEnabled:false,curveSegments:16});
+      const sk=Math.tan((g.skew||0)*Math.PI/180); const pa=geo.attributes.position; for(let i=0;i<pa.count;i++) pa.setX(i, pa.getX(i)+pa.getZ(i)*sk);
+      geo.computeVertexNormals();
+      const tl=Math.hypot(r.te,r.tn); add('stone', geo, frameM(r.e,r.n,0,r.mn,-r.me), true);
+      INST.labels.push({id:g.id, e:r.e+r.me*6, n:r.n+r.mn*6, y:A+6, gate:true});
+    } else if(g.pillars){ // Puerta de la Paz y la Concordia: brecha con pilares conmemorativos (dimensiones APROXIMADAS)
+      for(const sg of [-1,1]){ const s=g.s+sg*(g.width/2+1.1); const p=pointAt(P,s,-T_CURT/2); const M=frameM(p[0],p[1],0,r.te,r.tn);
+        add('stone', T(box(2.2,A+1.2,2.2),0,(A+1.2)/2,0), M, true); add('cal', T(box(2.7,0.45,2.7),0,A+1.42,0), M); add('cal', T(new THREE.SphereGeometry(0.75,20,14),0,A+2.3,0), M); }
+      INST.labels.push({id:g.id, e:r.e, n:r.n, y:A+8, gate:true});
+    } else if(g.gone){ // Media Luna: desaparecida — trazo punteado
+      dashedLine([pointAt(P,g.s-g.width/2,0),pointAt(P,g.s+g.width/2,0)]); dashedLine([pointAt(P,g.s-g.width/2,-T_CURT),pointAt(P,g.s+g.width/2,-T_CURT)]);
+      INST.labels.push({id:g.id, e:r.e, n:r.n, y:6, gone:true});
+    }
+  }
+}
+const DASH=[];
+function dashedLine(pts){ for(let i=0;i<pts.length-1;i++){ const a=pts[i],b=pts[i+1]; const L=Math.hypot(b[0]-a[0],b[1]-a[1]); const cnt=Math.floor(L/8);
+  for(let k=0;k<=cnt;k++){ const f=(k*8+2)/L; if(f>1) break; DASH.push({e:lerp(a[0],b[0],f),n:lerp(a[1],b[1],f),ang:Math.atan2(b[1]-a[1],b[0]-a[0])}); } } }
+
+/* =====================================================================
+   buildClockTower: portada barroca tripartita (Herrera y Sotomayor) +
+   torre de 1888 (Jaspe Franco) — altura total 30 m EXACTA (JSON)
+   ===================================================================== */
+const CLOCK_HANDS=[];
+function buildClockTower(){
+  const it=CHAIN_A[0]; const p=projectCoords(it.lat,it.lon); const t=it.t;
+  const dm=RELOJ.dimensiones_modelado; const W=dm.ancho_portada_m.valor, D=dm.fondo_tunel_m.valor, HT=dm.altura_total_torre_m.valor;
+  const M=frameM(p.e,p.n,0,t.e,t.n);
+  const zo=-3.5;  // APROXIMADO: la portada sobresale 3.5 m del cordón hacia el Camellón
+  const HB=9.0;   // APROXIMADO: altura del cuerpo bajo (portada) hasta la cornisa
+  // cuerpo con tres bóvedas de cañón (paso central + dos galerías laterales)
+  const sh=arcadeShape(W,HB,[{x:0,w:4.6,spring:4.2},{x:-6.3,w:2.6,spring:3.0},{x:6.3,w:2.6,spring:3.0}]); // APROXIMADO: luces de los arcos
+  const body=new THREE.ExtrudeGeometry(sh,{depth:D,bevelEnabled:false,curveSegments:20}); body.translate(0,0,zo);
+  add('ocre', body, M);
+  const bv=new THREE.BoxGeometry(W-0.2,0.1,D-0.2); // suelo de los túneles
+  add('pave', T(bv,0,0.04,zo+D/2), M, true);
+  // pilastras toscanas pareadas, entablamento dórico con triglifos, cornisa — en ambas fachadas
+  for(const [zf,sg] of [[zo,-1],[zo+D,1]]){
+    for(const x of [-3.55,-2.75,2.75,3.55]){
+      add('cal', T(box(0.55,6.9,0.3),x,0.3+3.45,zf+sg*0.15), M);
+      add('cal', T(box(0.75,0.3,0.42),x,0.15,zf+sg*0.2), M);
+      add('cal', T(box(0.75,0.3,0.42),x,7.05,zf+sg*0.2), M);
+    }
+    add('cal', T(box(W+0.3,0.4,0.36),0,7.4,zf+sg*0.18), M);           // arquitrabe
+    for(let x=-W/2+0.8;x<=W/2-0.6;x+=1.2) add('cal', T(box(0.36,0.62,0.1),x,7.95,zf+sg*0.05), M); // triglifos
+    add('cal', T(box(W+0.9,0.42,0.9),0,8.55,zf+sg*0.3), M);           // cornisa
+    for(const x of [-6.3,6.3]) add('cal', T(new THREE.TorusGeometry(1.45,0.1,6,24,Math.PI),x,3.0,zf+sg*0.06), M);
+    add('cal', T(new THREE.TorusGeometry(2.45,0.13,6,28,Math.PI),0,4.2,zf+sg*0.07), M);
+  }
+  // pretil de la azotea
+  for(const z of [zo+0.3, zo+D-0.3]) add('ocre', T(box(W,1.1,0.5),0,HB+0.55,z), M);
+  for(const x of [-W/2+0.25, W/2-0.25]) add('ocre', T(box(0.5,1.1,D),x,HB+0.55,zo+D/2), M);
+  // escudo heráldico real (JSON elementos_decorativos) sobre el arco central exterior
+  const esc=new THREE.Shape(); esc.moveTo(-0.8,1.0); esc.lineTo(0.8,1.0); esc.lineTo(0.8,0.1); esc.quadraticCurveTo(0.8,-0.85,0,-1.15); esc.quadraticCurveTo(-0.8,-0.85,-0.8,0.1); esc.lineTo(-0.8,1.0);
+  const eg=new THREE.ExtrudeGeometry(esc,{depth:0.18,bevelEnabled:true,bevelSize:0.05,bevelThickness:0.05,bevelSegments:2}); eg.rotateY(Math.PI);
+  add('cal', T(eg,0,HB+1.0,zo-0.1), M);
+  add('cal', T(box(1.3,0.35,0.25),0,HB+2.25,zo-0.05), M);
+  // ---- torre de 1888 ----
+  const cz=zo+D/2; const y0=HB;
+  add('ocre', T(box(6.0,4.0,6.0),0,y0+2.0,cz), M);
+  for(const x of [-2.95,2.95]) for(const z of [-2.95,2.95]) add('cal', T(box(0.35,4.0,0.35),x,y0+2.0,cz+z), M);
+  add('cal', T(box(6.7,0.32,6.7),0,y0+4.12,cz), M);
+  const oct=(r0,r1,h,y,key)=>{ const g=new THREE.CylinderGeometry(r1,r0,h,8,1); g.rotateY(Math.PI/8); const gn=g.toNonIndexed(); gn.computeVertexNormals(); add(key, T(gn,0,y+h/2,cz), M); };
+  oct(3.2,3.2,6.5,y0+4.28,'ocre');                 // cuerpo octogonal del reloj
+  oct(3.5,3.5,0.32,y0+10.78,'cal');
+  oct(2.5,2.5,4.5,y0+11.1,'ocre');                 // campanario
+  oct(2.72,2.72,0.3,y0+15.6,'cal');
+  const spireH=HT-(y0+15.9)-0.6;                   // aguja hasta completar 30.0 m (JSON)
+  { const g=new THREE.CylinderGeometry(0.06,2.3,spireH,8,1); g.rotateY(Math.PI/8); const gn=g.toNonIndexed(); gn.computeVertexNormals(); add('cal', T(gn,0,y0+15.9+spireH/2,cz), M); }
+  add('iron', T(new THREE.CylinderGeometry(0.04,0.04,0.6,6),0,HT-0.3,cz), M);
+  add('iron', T(new THREE.SphereGeometry(0.14,10,8),0,HT-0.42,cz), M);
+  for(let k=0;k<8;k++){ const a=Math.PI/8+k*Math.PI/4; const g=new THREE.ConeGeometry(0.22,1.1,6); add('cal', T(g,Math.sin(a)*2.6,y0+16.45,cz+Math.cos(a)*2.6), M); }
+  // vanos apuntados del campanario
+  const lan=new THREE.Shape(); lan.moveTo(-0.5,0); lan.lineTo(0.5,0); lan.lineTo(0.5,1.9); lan.quadraticCurveTo(0.5,2.5,0,2.85); lan.quadraticCurveTo(-0.5,2.5,-0.5,1.9); lan.lineTo(-0.5,0);
+  const ap2=2.5*Math.cos(Math.PI/8);
+  for(let k=0;k<8;k++){ const a=k*Math.PI/4; const g=new THREE.ShapeGeometry(lan); g.translate(0,0,ap2+0.02); g.rotateY(a); add('dark', T(g,0,y0+11.9,cz), M); }
+  // relojes de cuatro esferas
+  const ap=3.2*Math.cos(Math.PI/8); const face=new THREE.CircleGeometry(1.15,40);
+  const faceMat=new THREE.MeshStandardMaterial({map:clockTexture(),roughness:0.6,emissive:0xfff1c8,emissiveIntensity:0}); faceMat.userData.clock=true; CLOCK_FACE_MAT=faceMat;
+  const handMat=new THREE.MeshStandardMaterial({color:0x1a1714,roughness:0.5,metalness:0.4});
+  const tower=new THREE.Group(); tower.matrixAutoUpdate=false; tower.matrix.copy(M); scene.add(tower);
+  for(let k=0;k<4;k++){ const a=k*Math.PI/2; const g=new THREE.Group(); g.position.set(Math.sin(a)*(ap+0.03), y0+7.5, cz+Math.cos(a)*(ap+0.03)); g.rotation.y=a; tower.add(g);
+    const fm=new THREE.Mesh(face,faceMat); g.add(fm);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(1.18,0.07,6,40), STUFF.matCal); g.add(ring);
+    const hh=new THREE.Group(), mh=new THREE.Group(); hh.position.z=0.03; mh.position.z=0.05; g.add(hh,mh);
+    const hm=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.62,0.03),handMat); hm.position.y=0.25; hh.add(hm);
+    const mm=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.95,0.03),handMat); mm.position.y=0.4; mh.add(mm);
+    CLOCK_HANDS.push({h:hh,m:mh}); }
+  // regiones (bloqueado para la ciudad y recorrido)
+  const c4=[[-W/2,zo],[W/2,zo],[W/2,zo+D],[-W/2,zo+D]].map(([x,z])=>[p.e+t.e*x+(t.n)*z, p.n+t.n*x-(t.e)*z]);
+  addRegion(c4, Infinity);
+  const clr=[[-W/2-14,zo-2],[W/2+14,zo-2],[W/2+14,zo+D+30],[-W/2-14,zo+D+30]].map(([x,z])=>[p.e+t.e*x+(t.n)*z, p.n+t.n*x-(t.e)*z]);
+  addRegion(clr, null, 'clear'); // Plaza de los Coches
+  INST.labels.push({id:'reloj', e:p.e, n:p.n, y:HT+4, gate:true});
+  STUFF.reloj={e:p.e+t.n*cz, n:p.n-t.e*cz};
+}
+let CLOCK_FACE_MAT=null;
+
+/* =====================================================================
+   buildBovedas: 23 bóvedas, 47 arcos, frontón central, enlucido ocre (JSON)
+   ===================================================================== */
+const VAULTS=[];
+function buildBovedas(chainA){
+  const run=chainA.runs.find(r=>r.kind==='curtain' && r.next && r.next.id==='scatalina');
+  const P=chainA.P; const dm=BOV.dimensiones_modelado;
+  const LEN=dm.largo_total_m.valor, NB=BOV.numero_bovedas.valor, NA=BOV.numero_arcos_portada.valor;
+  const DEPTH=dm.fondo_cada_boveda_m.valor, GAL=3.0 /* JSON nota: "~3.0 m de la galería porticada" */, HF=dm.altura_fachada_m.valor;
+  const SPAN=dm.ancho_libre_cada_boveda_m.valor, MOD=LEN/NB;
+  const sc=run.s1-20-LEN/2;  // APROXIMADO: extremo a 20 m de la gola de Santa Catalina
+  const r=ringAt(P,sc); const o=[r.e-r.me*T_CURT, r.n-r.mn*T_CURT];
+  const M=frameM(o[0],o[1],0,r.te,r.tn);
+  const TOT=DEPTH+GAL, Zf=TOT; // fachada en Z = 18.5 (hacia la ciudad)
+  // cuerpo: muros de cabecera, losa/plataforma, muro de las bóvedas con 23 puertas
+  for(const x of [-LEN/2+0.5, LEN/2-0.5]) add('ocre', T(box(1.0,HF,TOT),x,HF/2,TOT/2), M);
+  add('ocre', T(box(LEN,0.6,TOT),0,HF-0.3,TOT/2), M);
+  add('pave', T(box(LEN-0.2,0.02,TOT-0.2),0,HF+0.01,TOT/2), M, true);
+  const doors=[]; for(let i=0;i<NB;i++) doors.push({x:-LEN/2+MOD*(i+0.5), w:2.1, spring:2.7}); // APROXIMADO: puerta de cada bóveda
+  const fw=new THREE.ExtrudeGeometry(arcadeShape(LEN,HF-0.6,doors),{depth:0.6,bevelEnabled:false,curveSegments:12}); fw.translate(0,0,DEPTH-0.6);
+  add('ocre', fw, M);
+  add('pave', T(box(LEN,0.25,GAL),0,0.125,DEPTH+GAL/2), M, true);
+  // galería porticada: 47 arcos de medio punto sobre pilares
+  const PIL=0.75; const span=LEN/NA-PIL; const spring=4.4; // APROXIMADO: pilar y arranque
+  const arcs=[]; for(let i=0;i<NA;i++) arcs.push({x:-LEN/2+LEN/NA*(i+0.5), w:span, spring});
+  const ped=Math.floor(NA/2); // arco central bajo el frontón
+  const fac=new THREE.ExtrudeGeometry(arcadeShape(LEN,HF,arcs),{depth:0.7,bevelEnabled:false,curveSegments:12}); fac.translate(0,0,Zf-0.7);
+  add('ocre', fac, M);
+  const capM=frameM(o[0],o[1],0,r.te,r.tn);
+  for(let i=0;i<=NA;i++){ const x=-LEN/2+LEN/NA*i; const w=i===0||i===NA?0.6:0.42; const xx= i===0?x+0.3:i===NA?x-0.3:x;
+    add('cal', T(box(w,spring,0.12),xx,spring/2,Zf+0.06), M);
+    add('cal', T(box(w+0.16,0.22,0.22),xx,spring-0.11,Zf+0.1), M); }
+  for(const a of arcs) add('cal', T(new THREE.TorusGeometry(span/2+0.09,0.09,5,16,Math.PI),a.x,spring,Zf+0.05), M);
+  add('cal', T(box(LEN+0.4,0.35,0.5),0,HF-0.2,Zf+0.15), M);   // cornisa
+  add('cal', T(box(LEN+0.2,0.25,0.3),0,6.3,Zf+0.1), M);        // imposta
+  add('cal', T(box(LEN+0.2,0.35,0.35),0,0.17,Zf+0.12), M);     // zócalo
+  // frontón central (vértice ~11.0 m según rango_referencia de altura_fachada)
+  const pw=5*LEN/NA, pk=11.0-HF; const ps=new THREE.Shape([new THREE.Vector2(-pw/2,0),new THREE.Vector2(pw/2,0),new THREE.Vector2(0,pk)]);
+  const pg=new THREE.ExtrudeGeometry(ps,{depth:0.7,bevelEnabled:false}); pg.translate(0,HF,Zf-0.7); add('ocre', pg, M);
+  const ang=Math.atan2(pk,pw/2), sl=Math.hypot(pw/2,pk);
+  for(const sg of [-1,1]){ const g=box(sl+0.6,0.3,0.6); g.rotateZ(sg*ang); add('cal', T(g,-sg*pw/4,HF+pk/2+0.12,Zf), M); }
+  const esc=new THREE.Shape(); esc.moveTo(-0.55,0.7); esc.lineTo(0.55,0.7); esc.lineTo(0.55,0.05); esc.quadraticCurveTo(0.55,-0.6,0,-0.8); esc.quadraticCurveTo(-0.55,-0.6,-0.55,0.05); esc.lineTo(-0.55,0.7);
+  add('cal', T(new THREE.ExtrudeGeometry(esc,{depth:0.12,bevelEnabled:false}),0,HF+0.95,Zf+0.02), M);
+  // pretil sobre la plataforma
+  add('ocre', T(box(LEN,0.9,0.4),0,HF+0.45,Zf-0.2), M); add('cal', T(box(LEN+0.1,0.1,0.5),0,HF+0.95,Zf-0.2), M);
+  // interiores de las 23 bóvedas de medio cañón (instanciados)
+  const vg=[]; const half=SPAN/2, len=DEPTH-0.6-0.4;
+  const cyl=new THREE.CylinderGeometry(half,half,len,20,1,true,Math.PI/2,Math.PI); cyl.rotateX(Math.PI/2); cyl.translate(0,4.0,0.4+len/2); vg.push(clean(cyl));
+  for(const sg of [-1,1]){ const pl=new THREE.PlaneGeometry(len,4.0); pl.rotateY(sg*Math.PI/2); pl.translate(sg*half,2.0,0.4+len/2); vg.push(clean(pl)); }
+  const bk=new THREE.PlaneGeometry(SPAN,6.4); bk.translate(0,3.2,0.4); vg.push(clean(bk));
+  const fl=new THREE.PlaneGeometry(SPAN,len); fl.rotateX(-Math.PI/2); fl.translate(0,0.02,0.4+len/2); vg.push(clean(fl));
+  const vgeo=mergeGeometries(vg);
+  for(let i=0;i<NB;i++){ VAULTS.push(new THREE.Matrix4().multiplyMatrices(M,new THREE.Matrix4().makeTranslation(-LEN/2+MOD*(i+0.5),0,0))); }
+  STUFF.vaultGeo=vgeo;
+  // regiones: plataforma transitable a la altura del adarve
+  const W2=(x,z)=>[o[0]+r.te*x-r.me*z, o[1]+r.tn*x-r.mn*z];
+  addRegion([W2(-LEN/2,0),W2(LEN/2,0),W2(LEN/2,TOT-0.45),W2(-LEN/2,TOT-0.45)], HF);
+  addRegion([W2(-LEN/2,TOT-0.45),W2(LEN/2,TOT-0.45),W2(LEN/2,TOT+0.3),W2(-LEN/2,TOT+0.3)], Infinity);
+  addRegion([W2(-LEN/2-6,0),W2(LEN/2+6,0),W2(LEN/2+6,TOT+12),W2(-LEN/2-6,TOT+12)], null, 'clear');
+  INST.labels.push({id:'bovedas', e:W2(0,TOT)[0], n:W2(0,TOT)[1], y:HF+6});
+  for(let i=0;i<5;i++){ const p=W2(-LEN/2+LEN*(i+0.5)/5, TOT+4); INST.lamps.push({e:p[0],n:p[1],y:0}); }
+  STUFF.bovedas={e:W2(0,TOT/2)[0], n:W2(0,TOT/2)[1]};
+  STUFF.walkStart={e:W2(-LEN/2+10,4)[0], n:W2(-LEN/2+10,4)[1], dir:[r.te,r.tn]};
+}
+
+/* =====================================================================
+   Espigón de la Tenaza (cadena cerrada al norte de Santa Catalina)
+   ===================================================================== */
+function buildTenaza(){
+  const sc=BASTIONS.scatalina; const sp=sc.O.pts[sc.O.sal]; const b=bd('Tenaza'); const g=b.geometria_planta;
+  const L=g.longitud_caras_m.valor, Fl=g.longitud_flancos_m.valor, Gw=g.ancho_gola_m.valor; const H=b.altura_m.valor-CREST;
+  // APROXIMADO: forma de tenaza (dos cuernos con entrante), orientada al norte (JSON: "al norte de Santa Catalina")
+  const loc=[[-Gw/2,-4],[-Gw/2,L-Fl],[-Gw/2-5,L],[0,L-7],[Gw/2+5,L],[Gw/2,L-Fl],[Gw/2,-4]];
+  let pts=loc.map(([x,y])=>({e:sp.e+x, n:sp.n+y, H, T:T_BAST}));
+  if(polyArea(pts.map(p=>[p.e,p.n]))>0) pts.reverse();
+  const P=preparePath(pts,true);
+  extrude(P,0,P.total,'base',{fullClosed:true}); extrude(P,0,P.total,'parapet',{fullClosed:true});
+  const poly=pts.map(p=>[p.e,p.n]); flatPoly(poly,H+CORD_R,'pave'); addRegion(poly, Infinity);
+  const tip=pts.find(p=>Math.abs(p.n-(sp.n+L))<0.01); const vi=pts.indexOf(tip); const m=P.mit[vi];
+  INST.garitas.push({e:tip.e+m.me*0.55, n:tip.n+m.mn*0.55, y:H+CORD_R, de:-m.me, dn:-m.mn});
+  INST.labels.push({id:'tenaza', e:sp.e, n:sp.n+L, y:b.altura_m.valor+6});
+  STUFF.tenaza={e:sp.e,n:sp.n+L/2};
+}
+
+/* =====================================================================
+   buildSentryBox: garita en voladizo sobre ménsula cónica anillada,
+   tambor con mirillas, cúpula de media naranja y pináculo (JSON garita_tipica)
+   ===================================================================== */
+function buildSentryBox(){
+  const R=GAR.diametro_exterior_tambor_m.valor/2;                 // 1.05
+  const parts=[];
+  // ménsula cónica anillada (~1.50 m)
+  const pr=[[0.0,-1.5],[0.22,-1.5],[0.26,-1.38],[0.38,-1.32],[0.42,-1.12],[0.6,-1.02],[0.64,-0.8],[0.82,-0.66],[0.86,-0.42],[1.0,-0.3],[1.02,-0.12],[R+0.08,-0.1],[R+0.08,0.0],[R,0.0]].map(([x,y])=>new THREE.Vector2(x,y));
+  parts.push(new THREE.LatheGeometry(pr,28));
+  // tambor (~2.20 m) con 3 mirillas verticales y vano de acceso hacia el interior
+  const H2=2.2, seg=(t0,t1,y0,y1)=>{ const g=new THREE.CylinderGeometry(R,R,y1-y0,Math.max(2,Math.round((t1-t0)/(Math.PI*2)*28)),1,true,t0,t1-t0); g.translate(0,(y0+y1)/2,0); parts.push(g); };
+  const door=0.36, slit=0.06; const sl=[Math.PI-0.95,Math.PI,Math.PI+0.95];
+  seg(door,Math.PI*2-door,0,0.95); seg(-door,door,1.85,H2); seg(door,Math.PI*2-door,1.75,H2);
+  { let a=door; for(const s of sl){ seg(a,s-slit,0.95,1.75); a=s+slit; } seg(a,Math.PI*2-door,0.95,1.75); }
+  const fl=new THREE.CircleGeometry(R-0.02,24); fl.rotateX(-Math.PI/2); fl.translate(0,0.02,0); parts.push(fl);
+  // cornisa + cúpula de media naranja + pináculo (~1.50 m)
+  const top=[[R,H2],[R+0.12,H2+0.05],[R+0.12,H2+0.16],[R-0.06,H2+0.2]];
+  for(let i=0;i<=10;i++){ const a=i/10*Math.PI/2; top.push([(R-0.08)*Math.cos(a), H2+0.2+(R-0.12)*Math.sin(a)]); }
+  const yc=H2+0.2+(R-0.12); top.splice(top.length-1,1,[0.14,yc],[0.18,yc+0.08],[0.09,yc+0.22],[0.13,yc+0.32],[0.0,GAR.altura_total_m.valor-1.5]);
+  parts.push(new THREE.LatheGeometry(top.map(([x,y])=>new THREE.Vector2(x,y)),28));
+  const g=mergeGeometries(parts.map(p=>meterUV(clean(p))));
+  return g;
+}
+
+/* =====================================================================
+   Cañón sobre cureña (JSON elementos_decorativos) — dimensiones APROXIMADAS
+   ===================================================================== */
+function buildCannon(){
+  const pr=[[0,-1.25],[0.1,-1.3],[0.16,-1.22],[0.1,-1.15],[0.27,-1.12],[0.29,-1.0],[0.27,-0.95],[0.26,-0.3],[0.24,-0.25],[0.22,0.9],[0.2,0.95],[0.19,1.55],[0.22,1.6],[0.22,1.68],[0.12,1.7],[0.11,1.4]].map(([x,y])=>new THREE.Vector2(x,y));
+  const barrel=new THREE.LatheGeometry(pr,18); barrel.rotateX(Math.PI/2); barrel.translate(0,0.95,0);
+  const tr=new THREE.CylinderGeometry(0.07,0.07,0.75,8); tr.rotateZ(Math.PI/2); tr.translate(0,0.95,0.05);
+  const wood=[];
+  for(const x of [-0.27,0.27]){ const s=new THREE.Shape([new THREE.Vector2(-0.95,0.18),new THREE.Vector2(0.75,0.18),new THREE.Vector2(0.75,0.82),new THREE.Vector2(0.15,0.95),new THREE.Vector2(-0.3,0.78),new THREE.Vector2(-0.55,0.62),new THREE.Vector2(-0.95,0.5)]);
+    const g=new THREE.ExtrudeGeometry(s,{depth:0.12,bevelEnabled:false}); g.rotateY(-Math.PI/2); g.translate(x+0.06,0,0); wood.push(g); }
+  for(const z of [-0.7,0.55]){ const ax=new THREE.BoxGeometry(0.75,0.14,0.16); ax.translate(0,0.22,z); wood.push(ax);
+    for(const x of [-0.42,0.42]){ const w=new THREE.CylinderGeometry(0.22,0.22,0.1,14); w.rotateZ(Math.PI/2); w.translate(x,0.22,z); wood.push(w); } }
+  return { iron: mergeGeometries([clean(barrel),clean(tr)]), wood: mergeGeometries(wood.map(clean)) };
+}
+
+/* =====================================================================
+   Terreno y costas (APROXIMADO: el JSON solo describe el contexto en texto)
+   ===================================================================== */
+const LAND_LL = {
+  main:[[10.4420,-75.5360],[10.4380,-75.5395],[10.4342,-75.5425],[10.4315,-75.5448],[10.43110,-75.54660],[10.42975,-75.54921],[10.42840,-75.55096],[10.42615,-75.55276],[10.42305,-75.55386],
+        [10.42150,-75.55370],[10.42120,-75.55115],[10.42190,-75.54950],[10.42210,-75.54880],[10.42100,-75.54890],[10.41950,-75.54860],[10.41850,-75.54700],[10.41840,-75.54560],
+        [10.41950,-75.54390],[10.42085,-75.54360],[10.42210,-75.54390],[10.42340,-75.54440],[10.42500,-75.54360],[10.42680,-75.54320],[10.42930,-75.54320],[10.43150,-75.54300],
+        [10.43500,-75.54020],[10.43820,-75.53720],[10.4420,-75.5345]],
+  mainland:[[10.4500,-75.5300],[10.4400,-75.5330],[10.4360,-75.5370],[10.4320,-75.5405],[10.4290,-75.5415],[10.4260,-75.5418],[10.4230,-75.5420],[10.4200,-75.5418],[10.4170,-75.5425],[10.4140,-75.5440],[10.4060,-75.5420],[10.4000,-75.5300],[10.4000,-75.5100],[10.4500,-75.5100]],
+  bocagrande:[[10.4215,-75.5545],[10.4200,-75.5562],[10.4100,-75.5582],[10.4000,-75.5600],[10.3950,-75.5560],[10.4050,-75.5522],[10.4150,-75.5522],[10.4200,-75.5530]],
+  manga:[[10.4165,-75.5440],[10.4155,-75.5480],[10.4100,-75.5500],[10.4040,-75.5460],[10.4060,-75.5400],[10.4120,-75.5395]],
+};
+const LAND={}; for(const k in LAND_LL) LAND[k]=LAND_LL[k].map(([a,b])=>{const p=projectCoords(a,b); return [p.e,p.n];});
+let CASTILLO;
+function hill(e,n){ const d=Math.hypot(e-CASTILLO.e,n-CASTILLO.n); return 38*Math.exp(-((d/210)**2)); } // APROXIMADO: cerro de San Lázaro
+function buildGround(){
+  // costa del frente marino: paralela al trazado de anclajes (APROXIMADO: ~118 m incluye playa y Av. Santander)
+  const ids=['sfj','santiago','pdomingo','sdomingo','scruz','ballestas','merced','sclara','scatalina']; const an=ids.map(id=>CHAIN_A.find(i=>i.id===id));
+  const AP=preparePath(an.map(i=>({e:i.e,n:i.n})),false);
+  const coast=[]; for(let i=0;i<AP.N;i++) coast.push(vtxPoint(AP,i,118)); coast[0]=pointAt(AP,0,118);
+  const M0=LAND.main; LAND.main=[...M0.slice(0,4), ...coast.slice().reverse(), ...M0.slice(9)];
+  STUFF.seaLine=[coast[0], M0[3]];
+  for(const k in LAND){ const poly=LAND[k]; flatPoly(poly,k==='manga'?-0.04:0,k==='mainland'?'grass':'ground'); skirt(poly,WATER_Y-3,0,'stone'); }
+  landHeight=(e,n)=>{ for(const k in LAND) if(pip(e,n,LAND[k])) return k==='mainland'? hill(e,n) : 0; return Infinity; };
+  // cerro de San Lázaro
+  const pr=[]; for(let i=0;i<=40;i++){ const r=i/40*420; pr.push(new THREE.Vector2(r, 38*Math.exp(-((r/210)**2))-0.05)); }
+  const hg=new THREE.LatheGeometry(pr,48); hg.translate(CASTILLO.e,0,-CASTILLO.n);
+  add('grass', faceUp(clean(hg)), null, true);
+  // Av. Santander (JSON contexto_paisaje) como cinta de asfalto paralela al frente marino — APROXIMADO
+    const L=[],R=[]; for(let s=0;s<=AP.total;s+=8){ L.push(pointAt(AP,s,86)); R.push(pointAt(AP,s,99)); }
+  for(let i=0;i<L.length-1;i++){ flatPoly([L[i],L[i+1],R[i+1],R[i]],0.03,'asphalt'); }
+  // escolleras de piedra frente al mar Caribe
+  STUFF.rocks=[]; const r=rng(77); const C=[M0[3],...coast.slice().reverse()]; for(let i=0;i<C.length-1;i++){ const a=C[i], b=C[i+1]; const Lg=Math.hypot(b[0]-a[0],b[1]-a[1]); const nE=(b[1]-a[1])/Lg, nN=-(b[0]-a[0])/Lg;
+    for(let s=0;s<Lg;s+=2.2){ for(let row=0;row<2;row++){ const f=s/Lg; STUFF.rocks.push({e:lerp(a[0],b[0],f)+nE*(row*2.2-1+r()), n:lerp(a[1],b[1],f)+nN*(row*2.2-1+r()), s:0.9+r()*1.5, ry:r()*6, rx:r()*3}); } } }
+}
+function faceUp(g){ // orienta triángulos y normales hacia arriba
+  const p=g.attributes.position, n=g.attributes.normal, uv=g.attributes.uv; const a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3();
+  for(let i=0;i<p.count;i+=3){ a.fromBufferAttribute(p,i); b.fromBufferAttribute(p,i+1); c.fromBufferAttribute(p,i+2); const cr=b.clone().sub(a).cross(c.clone().sub(a));
+    if(cr.y<0){ for(const at of [p,n,uv]){ const k=at.itemSize; for(let j=0;j<k;j++){ const t=at.array[(i+1)*k+j]; at.array[(i+1)*k+j]=at.array[(i+2)*k+j]; at.array[(i+2)*k+j]=t; } } } }
+  for(let i=0;i<n.count;i++) if(n.getY(i)<0) n.setXYZ(i,-n.getX(i),-n.getY(i),-n.getZ(i));
+  return g;
+}
+function batteredPrism(poly, y0, y1, inset){ // muros en talud (silueta del castillo)
+  const c=centroid(poly); const top=poly.map(p=>{ const de=p[0]-c[0], dn=p[1]-c[1], L=Math.hypot(de,dn); return [p[0]-de/L*inset, p[1]-dn/L*inset]; });
+  const G=BUCKET.stone.geo; const cw=polyArea(poly)<0;
+  for(let i=0;i<poly.length;i++){ const j=(i+1)%poly.length; const a=[poly[i][0],y0,-poly[i][1]], b=[poly[j][0],y0,-poly[j][1]], c2=[top[i][0],y1,-top[i][1]], d=[top[j][0],y1,-top[j][1]];
+    const n=new THREE.Vector3().crossVectors(new THREE.Vector3(b[0]-a[0],b[1]-a[1],b[2]-a[2]), new THREE.Vector3(c2[0]-a[0],c2[1]-a[1],c2[2]-a[2])).normalize();
+    const mid=[(a[0]+b[0])/2-c[0], -(a[2]+b[2])/2-c[1]]; const outw = n.x*mid[0] - n.z*mid[1] > 0; const nn = outw?[n.x,n.y,n.z]:[-n.x,-n.y,-n.z];
+    const L=Math.hypot(b[0]-a[0],b[2]-a[2]);
+    if(outw){ G.tri(a,b,c2,nn,nn,nn,[0,y0],[L,y0],[0,y1]); G.tri(b,d,c2,nn,nn,nn,[L,y0],[L,y1],[0,y1]); }
+    else { G.tri(a,c2,b,nn,nn,nn,[0,y0],[0,y1],[L,y0]); G.tri(b,c2,d,nn,nn,nn,[L,y0],[0,y1],[L,y1]); } }
+  flatPoly(top,y1,'stone'); return top;
+}
+function buildCastillo(){ // silueta del Castillo de San Felipe de Barajas — APROXIMADO (solo masa y escalonamiento)
+  const c=CASTILLO; const P=(pts)=>pts.map(([x,y])=>[c.e+x,c.n+y]);
+  batteredPrism(P([[-120,-30],[-60,-62],[40,-60],[118,-24],[110,30],[30,58],[-70,54],[-125,20]]),14,27,2.6);
+  batteredPrism(P([[-78,-22],[-30,-44],[40,-40],[78,-12],[70,24],[10,40],[-58,34]]),26,35.5,1.8);
+  const t3=batteredPrism(P([[-36,-14],[0,-24],[36,-12],[32,14],[0,22],[-32,12]]),35,43,1.4);
+  for(const [x,y,z] of [[-120,-30,27],[118,-24,27],[110,30,27],[-125,20,27],[-78,-22,35.5],[78,-12,35.5],[36,-12,43],[-36,-14,43]]){ const de=x, dn=y, L=Math.hypot(de,dn); INST.garitas.push({e:c.e+x+de/L*0.4, n:c.n+y+dn/L*0.4, y:z, de:-de/L, dn:-dn/L}); }
+  INST.labels.push({id:'castillo', e:c.e, n:c.n, y:56});
+}
+
+/* =====================================================================
+   buildCity: ciudad colonial simplificada dentro del cordón (APROXIMADO)
+   ===================================================================== */
+const HOUSES=[], ROOFS=[], BALC=[];
+function buildCity(){
+  const A=CHAINS[0], B=CHAINS[1];
+  const matuna=[A.P.pts[A.P.N-1], ...MATUNA_LL.map(([a,b])=>{const p=projectCoords(a,b);return {e:p.e,n:p.n};})];
+  const centro=[...A.P.pts.map(p=>[p.e,p.n]), ...matuna.slice(1).map(p=>[p.e,p.n])];
+  const getsW=[[10.41870,-75.54700],[10.41980,-75.54820],[10.42160,-75.54800],[10.42260,-75.54700],[10.42330,-75.54600]].map(([a,b])=>{const p=projectCoords(a,b);return [p.e,p.n];});
+  const getsemani=[...B.P.pts.map(p=>[p.e,p.n]), ...getsW];
+  const pal=[COLX.ocre_amarillo_colonial_bovedas_y_reloj, COLX.blanco_cal_detalles, '#E9C9A1','#D98C6A','#7FA8B8','#C96F5C','#E2B65E','#9DB89A','#F1E2B8','#B4625A','#6E93B0','#E7D6C2'];
+  // ^ ocre y blanco cal del JSON; resto de la paleta APROXIMADO (colores coloniales genéricos)
+  const r=rng(2024); const col=new THREE.Color();
+  const sea=CHAINS[0].items; const ang = Math.atan2(BASTIONS.scatalina.n-BASTIONS.sfj.n, BASTIONS.scatalina.e-BASTIONS.sfj.e);
+  const districts=[{poly:centro, ang, bx:62, by:46}, {poly:getsemani, ang:Math.PI/2-0.12, bx:56, by:42}];
+  flatPoly(centro,0.02,'street'); flatPoly(getsemani,0.02,'street'); // calles (APROXIMADO)
+  for(const D of districts){
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; const ca=Math.cos(-D.ang), sa=Math.sin(-D.ang);
+    for(const p of D.poly){ const x=p[0]*ca-p[1]*sa, y=p[0]*sa+p[1]*ca; x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y); }
+    const toEN=(x,y)=>{ const c=Math.cos(D.ang), s=Math.sin(D.ang); return [x*c-y*s, x*s+y*c]; };
+    const st=8.5; // APROXIMADO: ancho de calle
+    for(let bxp=x0; bxp<x1; bxp+=D.bx+st) for(let byp=y0; byp<y1; byp+=D.by+st){
+      const bw=D.bx*(0.8+0.25*r()), bh=D.by*(0.8+0.25*r());
+      const corners=[[bxp,byp],[bxp+bw,byp],[bxp+bw,byp+bh],[bxp,byp+bh]];
+      // faroles en esquinas
+      { const c=toEN(bxp-st/2,byp-st/2); if(pip(c[0],c[1],D.poly) && !rectBlocked([c],3)) INST.lamps.push({e:c[0],n:c[1],y:0}); }
+      for(let side=0; side<4; side++){
+        const a=corners[side], b=corners[(side+1)%4]; const ex=b[0]-a[0], ey=b[1]-a[1], L=Math.hypot(ex,ey); const ux=ex/L, uy=ey/L; const nx=uy, ny=-ux; // normal exterior de la manzana
+        const depth=11+r()*4; const start = (side%2===1)? depth : 0, end = (side%2===1)? L-depth : L;
+        let s=start;
+        while(s<end-4){ const w=Math.min(end-s, 7+r()*6); if(end-s-w<4) {}
+          const cxl=a[0]+ux*(s+w/2)-nx*depth/2, cyl=a[1]+uy*(s+w/2)-ny*depth/2;
+          const c=toEN(cxl,cyl); const fr=toEN(ux,uy); const rot=Math.atan2(fr[1],fr[0])+D.ang*0;
+          const fe=Math.cos(D.ang)*ux-Math.sin(D.ang)*uy, fn=Math.sin(D.ang)*ux+Math.cos(D.ang)*uy;
+          const ce=c[0], cn=c[1];
+          const fp=[[-w/2,-depth/2],[w/2,-depth/2],[w/2,depth/2],[-w/2,depth/2]].map(([x,y])=>[ce+fe*x-fn*y, cn+fn*x+fe*y]);
+          if(fp.every(p=>pip(p[0],p[1],D.poly)) && !rectBlocked(fp,4) && landHeight(ce,cn)===0){
+            const two=r()<0.62; const h=two?(7.2+r()*1.6):(4.4+r()*1.2);
+            col.set(pal[Math.floor(r()*pal.length)]);
+            HOUSES.push({e:ce,n:cn,w,d:depth,h,fe,fn,c:col.clone()});
+            const rh=1.3+r()*0.8; ROOFS.push({e:ce,n:cn,w:w+0.5,d:depth+0.5,h:rh,y:h,fe,fn,c:new THREE.Color().setHSL(0.03+r()*0.03,0.45+r()*0.15,0.36+r()*0.1)});
+            if(two && r()<0.8){ BALC.push({e:ce, n:cn, w:w*(0.45+0.4*r()), fe, fn, off:depth/2, y:3.6}); }
+            addRegion(fp, Infinity, 'house');
+          }
+          s+=w;
+        }
+      }
+    }
+  }
+}
+
+/* =====================================================================
+   buildSea: Mar Caribe (oleaje), bahía y caños — shader procedural
+   ===================================================================== */
+function buildSea(){
+  const S=4800, C=1024; const c=document.createElement('canvas'); c.width=c.height=C; const g=c.getContext('2d');
+  const px=(p)=>[(p[0]+S/2)/S*C, (S/2-p[1])/S*C];
+  g.fillStyle='#000'; g.fillRect(0,0,C,C);
+  g.filter='blur(5px)'; g.fillStyle='rgb(255,0,0)';
+  for(const k in LAND){ g.beginPath(); LAND[k].forEach((p,i)=>{ const q=px(p); i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]); }); g.closePath(); g.fill(); }
+  // canal G: mar abierto (Caribe) al NO de la línea de costa — APROXIMADO
+  const a=STUFF.seaLine[0], b=STUFF.seaLine[1]; const dx=b[0]-a[0], dy=b[1]-a[1];
+  const far=(p,k)=>[p[0]+dx*k, p[1]+dy*k]; const nrm=[-dy,dx]; const L=Math.hypot(...nrm); const o=[nrm[0]/L*6000,nrm[1]/L*6000];
+  const poly=[far(a,-3),far(b,3),[far(b,3)[0]+o[0],far(b,3)[1]+o[1]],[far(a,-3)[0]+o[0],far(a,-3)[1]+o[1]]];
+  g.globalCompositeOperation='lighter'; g.filter='blur(30px)'; g.fillStyle='rgb(0,255,0)'; g.beginPath(); poly.forEach((p,i)=>{const q=px(p); i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]);}); g.closePath(); g.fill();
+  const mask=new THREE.CanvasTexture(c); mask.colorSpace=THREE.NoColorSpace; mask.wrapS=mask.wrapT=THREE.ClampToEdgeWrapping;
+  const mat=new THREE.ShaderMaterial({
+    uniforms:{ uTime:U.time, uMask:{value:mask}, uSize:{value:S}, uSunDir:{value:new THREE.Vector3(0,1,0)}, uSunCol:{value:new THREE.Color(1,1,1)},
+      uSky:{value:new THREE.Color()}, uHor:{value:new THREE.Color()}, uDeep:{value:new THREE.Color('#0b5a74')}, uShallow:{value:new THREE.Color('#2aa6a1')}, uBay:{value:new THREE.Color('#2f6f6d')},
+      uLight:{value:1}, uNight:U.night, fogColor:{value:new THREE.Color()}, fogNear:{value:1}, fogFar:{value:2} },
+    vertexShader:`varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
+    fragmentShader:`uniform float uTime,uSize,uLight,uNight,fogNear,fogFar; uniform sampler2D uMask; uniform vec3 uSunDir,uSunCol,uSky,uHor,uDeep,uShallow,uBay,fogColor; varying vec3 vW;
+      ${GLSL_NOISE}
+      void main(){
+        vec2 p=vec2(vW.x,-vW.z); vec2 uv=p/uSize+0.5; vec4 mk = (uv.x>0.0&&uv.x<1.0&&uv.y>0.0&&uv.y<1.0)? texture2D(uMask,uv) : vec4(0.0,1.0,0.0,0.0);
+        float open=mk.g, land=mk.r;
+        vec2 gr=vec2(0.0); float amp=0.25+0.75*open;
+        vec2 D[6]; D[0]=normalize(vec2(-0.6,-0.8)); D[1]=normalize(vec2(-0.3,-0.95)); D[2]=normalize(vec2(-0.85,-0.5)); D[3]=normalize(vec2(0.2,-1.0)); D[4]=normalize(vec2(-1.0,-0.1)); D[5]=normalize(vec2(-0.5,-0.4));
+        float K[6]; K[0]=0.07; K[1]=0.11; K[2]=0.19; K[3]=0.31; K[4]=0.53; K[5]=0.9;
+        for(int i=0;i<6;i++){ float k=K[i]; float w=sqrt(9.8*k); float A=amp*0.55/(k*12.0+2.0); float ph=dot(D[i],p)*k - uTime*w*0.9 + float(i)*1.7; gr += D[i]*A*k*cos(ph); }
+        gr += (vec2(vnoise(p*0.35+uTime*0.25), vnoise(p.yx*0.31-uTime*0.2))-0.5)*0.06;
+        vec3 N=normalize(vec3(-gr.x,1.0,gr.y));
+        vec3 V=normalize(cameraPosition-vW); float fr=0.02+0.98*pow(1.0-max(dot(N,V),0.0),5.0);
+        vec3 R=reflect(-V,N); vec3 refl=mix(uHor,uSky,clamp(R.y*2.2,0.0,1.0));
+        float spec=pow(max(dot(R,uSunDir),0.0),380.0)*4.0 + pow(max(dot(R,uSunDir),0.0),40.0)*0.15;
+        float sh=smoothstep(0.02,0.55,land);
+        vec3 body=mix(mix(uBay,uDeep,open), uShallow, sh*0.85)*uLight;
+        vec3 col=mix(body, refl, fr*0.85) + uSunCol*spec*(1.0-uNight);
+        float foamBand = smoothstep(0.33,0.5,land)*(1.0-smoothstep(0.5,0.68,land)) * open;
+        float fo = foamBand * smoothstep(0.45,0.85, vnoise(p*0.18+vec2(uTime*0.6,uTime*0.2)) + 0.35*sin(dot(p,vec2(0.5,0.8))*0.12 - uTime*1.6));
+        col = mix(col, vec3(0.92,0.95,0.95)*uLight, fo*0.75);
+        float d=length(cameraPosition-vW); float f=smoothstep(fogNear,fogFar,d); col=mix(col,fogColor,f);
+        gl_FragColor=vec4(col,1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }` });
+  const sea=new THREE.Mesh(new THREE.PlaneGeometry(40000,40000,160,160), mat); sea.rotation.x=-Math.PI/2; sea.position.y=WATER_Y; scene.add(sea);
+  STUFF.seaMat=mat;
+}
+
+/* =====================================================================
+   setupLights: ciclo día / atardecer / noche (sol de Cartagena, 10.4° N)
+   ===================================================================== */
+let sun, hemi, moon, sky, stars;
+function setupLights(){
+  sky=new Sky(); sky.scale.setScalar(20000); scene.add(sky);
+  const u=sky.material.uniforms; u.turbidity.value=7; u.rayleigh.value=1.6; u.mieCoefficient.value=0.005; u.mieDirectionalG.value=0.82;
+  sun=new THREE.DirectionalLight(0xffffff,3); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+  const cam=sun.shadow.camera; cam.left=-320; cam.right=320; cam.top=320; cam.bottom=-320; cam.near=10; cam.far=2600; sun.shadow.bias=-0.0004; sun.shadow.normalBias=0.6;
+  scene.add(sun, sun.target);
+  hemi=new THREE.HemisphereLight(0xbfd8ff,0x8a7a62,0.6); scene.add(hemi);
+  moon=new THREE.DirectionalLight(0x8fa6d8,0); moon.position.set(-600,900,400); scene.add(moon);
+  const sg=new THREE.BufferGeometry(); const sp=[]; const r=rng(9); for(let i=0;i<2500;i++){ const z=r()*0.95+0.05, a=r()*Math.PI*2, q=Math.sqrt(1-z*z); sp.push(Math.cos(a)*q*15000, z*15000, Math.sin(a)*q*15000); }
+  sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
+  stars=new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:1.6,sizeAttenuation:false,transparent:true,opacity:0,fog:false,depthWrite:false})); scene.add(stars);
+  scene.fog=new THREE.Fog(0xbcc8d6,900,7000);
+}
+const SUNSTATE={dir:new THREE.Vector3(0,1,0), el:0};
+function setTime(h){
+  const lat=10.42*Math.PI/180, dec=-9.6*Math.PI/180; // APROXIMADO: declinación solar de mediados de octubre
+  const HA=(h-12)*15*Math.PI/180;
+  const sinEl=Math.sin(lat)*Math.sin(dec)+Math.cos(lat)*Math.cos(dec)*Math.cos(HA); const el=Math.asin(sinEl);
+  let az=Math.atan2(-Math.sin(HA), Math.tan(dec)*Math.cos(lat)-Math.sin(lat)*Math.cos(HA)); // desde el norte, horario
+  const d=new THREE.Vector3(Math.sin(az)*Math.cos(el), Math.sin(el), -Math.cos(az)*Math.cos(el)).normalize();
+  SUNSTATE.dir.copy(d); SUNSTATE.el=el;
+  const day=sstep(-0.06,0.22,sinEl), night=1-sstep(-0.16,0.03,sinEl), golden=sstep(0.0,0.08,sinEl)*(1-sstep(0.12,0.45,sinEl));
+  sky.material.uniforms.sunPosition.value.copy(d);
+  sky.material.uniforms.rayleigh.value=lerp(1.0,2.4,golden); sky.material.uniforms.turbidity.value=lerp(3.2,8,golden); sky.material.uniforms.mieCoefficient.value=lerp(0.004,0.012,golden);
+  sun.intensity=day*3.2; sun.color.setRGB(1, lerp(1,0.62,golden), lerp(1,0.38,golden));
+  sun.castShadow = day>0.02 && UIState.shadows;
+  hemi.intensity=lerp(0.07,1.05,day)+0.04; hemi.color.setRGB(lerp(0.25,0.75,day),lerp(0.3,0.84,day),lerp(0.5,1.0,day)); hemi.groundColor.setRGB(lerp(0.12,0.55,day),lerp(0.1,0.47,day),lerp(0.1,0.38,day));
+  moon.intensity=night*0.35;
+  U.night.value=night;
+  renderer.toneMappingExposure=lerp(0.95,0.7,day)*lerp(1,1.25,night)*lerp(1,1.25,golden);
+  const fogDay=new THREE.Color(0.66,0.76,0.9), fogGold=new THREE.Color(0.95,0.68,0.48), fogNight=new THREE.Color(0.025,0.032,0.06);
+  const fc=fogDay.clone().lerp(fogGold,golden).lerp(fogNight,night); scene.fog.color.copy(fc);
+  stars.material.opacity=night;
+  const sm=STUFF.seaMat.uniforms; sm.uSunDir.value.copy(d); sm.uSunCol.value.copy(sun.color).multiplyScalar(day);
+  sm.uHor.value.copy(fc).multiplyScalar(lerp(1,0.9,night)); sm.uSky.value.copy(new THREE.Color(0.25,0.45,0.8).lerp(new THREE.Color(0.55,0.42,0.5),golden).lerp(new THREE.Color(0.01,0.015,0.04),night));
+  sm.uLight.value=lerp(0.06,1,day); sm.fogColor.value.copy(fc); sm.fogNear.value=scene.fog.near; sm.fogFar.value=scene.fog.far;
+  STUFF.lampMat.emissiveIntensity=0.05+night*3.0; STUFF.poolMat.opacity=night*0.85; if(CLOCK_FACE_MAT) CLOCK_FACE_MAT.emissiveIntensity=night*0.9;
+  // manecillas del reloj
+  const hr=h%12, mn=(h*60)%60; for(const c of CLOCK_HANDS){ c.h.rotation.z=-hr/12*Math.PI*2; c.m.rotation.z=-mn/60*Math.PI*2; }
+  const hh=Math.floor(h)%24, mm=Math.floor((h*60)%60); const ph = night>0.6?'Noche':golden>0.25?(h<12?'Amanecer':'Atardecer'):day>0.5?'Día':'Crepúsculo';
+  document.getElementById('hourLbl').textContent=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} · ${ph}`;
+}
+
+/* =====================================================================
+   ESCENA
+   ===================================================================== */
+const STUFF={};
+const UIState={shadows:true, labels:true, mode:'orbit'};
+const app=document.getElementById('app');
+const renderer=new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); renderer.setSize(innerWidth,innerHeight);
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+const labelR=new CSS2DRenderer(); labelR.setSize(innerWidth,innerHeight); Object.assign(labelR.domElement.style,{position:'absolute',top:'0',left:'0',pointerEvents:'none'}); app.appendChild(labelR.domElement);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.5,40000);
+const orbit=new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.dampingFactor=0.08; orbit.maxPolarAngle=Math.PI*0.495; orbit.minDistance=4; orbit.maxDistance=5000;
+const fpc=new PointerLockControls(camera, renderer.domElement);
+
+function build(){
+  TEX={ stone:stoneTextures(), pave:paveTextures(), stucco:stuccoTexture(), tile:tileTexture(), ground:groundTexture() };
+  STUFF.matCal = stuccoMat(COLX.blanco_cal_detalles); setupLights();
+  const A=buildChain(CHAIN_A,'A'); const B=buildChain(CHAIN_B,'B');
+  const scc=BASTIONS.scatalina; CASTILLO={ e:SC_CENTROID.e+1250*Math.sin(Math.PI*3/4), n:SC_CENTROID.n+1250*Math.cos(Math.PI*3/4) }; // JSON: 1,25 km al SE de Santa Catalina
+  buildChainGeometry(A); buildChainGeometry(B); buildGates(A); buildGates(B);
+  buildClockTower(); buildBovedas(A); buildTenaza(); buildCastillo(); buildGround();
+  // tramo demolido de La Matuna: línea punteada en el suelo
+  const mat=[[A.P.pts[A.P.N-1].e,A.P.pts[A.P.N-1].n], ...MATUNA_LL.map(([a,b])=>{const p=projectCoords(a,b);return [p.e,p.n];})];
+  const rel=CHAIN_A[0]; mat.push([rel.e-rel.t.e*11, rel.n-rel.t.n*11]); dashedLine(mat);
+  const mid=mat[1]; INST.labels.push({id:'matuna', e:mid[0], n:mid[1], y:5, gone:true}); STUFF.matuna={e:mid[0],n:mid[1]};
+  buildCity();
+
+  // ---- mallas finales ----
+  const mats={ stone:stoneMat(), pave:new THREE.MeshStandardMaterial({map:TEX.pave.map,normalMap:TEX.pave.normal,roughness:0.95}), ocre:stuccoMat(COLX.ocre_amarillo_colonial_bovedas_y_reloj), cal:STUFF.matCal,
+    dark:new THREE.MeshStandardMaterial({color:0x14110e,roughness:1}), iron:new THREE.MeshStandardMaterial({color:0x2a2a2c,roughness:0.45,metalness:0.7}), wood:new THREE.MeshStandardMaterial({color:0x5b3b22,roughness:0.85}),
+    tile:new THREE.MeshStandardMaterial({map:TEX.tile,roughness:0.8}), ground:new THREE.MeshStandardMaterial({map:TEX.ground,roughness:1}), grass:new THREE.MeshStandardMaterial({map:TEX.ground,color:0x9fae72,roughness:1}), street:new THREE.MeshStandardMaterial({map:TEX.pave.map,color:0xe2dccf,roughness:0.95}), asphalt:new THREE.MeshStandardMaterial({color:0x77746f,roughness:0.9}), vault:null };
+  STUFF.mats=mats;
+  for(const k in BUCKET){ const b=BUCKET[k]; const gs=[...b.list]; if(b.geo.p.length) gs.push(b.geo.geometry()); if(!gs.length||!mats[k]) continue;
+    const g=mergeGeometries(gs); g.computeBoundingSphere(); const m=new THREE.Mesh(g,mats[k]); m.castShadow=!['ground','grass','street','asphalt','dark'].includes(k); m.receiveShadow=true; scene.add(m); }
+  // interiores de bóvedas
+  const vm=new THREE.InstancedMesh(STUFF.vaultGeo, stuccoMat('#b98d3c'), VAULTS.length); VAULTS.forEach((m,i)=>vm.setMatrixAt(i,m)); vm.material.side=THREE.DoubleSide; vm.receiveShadow=true; scene.add(vm);
+  // garitas
+  const gg=buildSentryBox(); const gm=new THREE.InstancedMesh(gg, stoneMat({side:THREE.DoubleSide}), INST.garitas.length); const m4=new THREE.Matrix4(), q=new THREE.Quaternion(), sc=new THREE.Vector3(1,1,1);
+  INST.garitas.forEach((g,i)=>{ q.setFromAxisAngle(new THREE.Vector3(0,1,0), Math.atan2(g.de,-g.dn)); m4.compose(new THREE.Vector3(g.e,g.y,-g.n),q,sc); gm.setMatrixAt(i,m4); }); gm.castShadow=gm.receiveShadow=true; scene.add(gm);
+  // cañones
+  const cg=buildCannon(); const ci=new THREE.InstancedMesh(cg.iron, mats.iron, INST.cannons.length), cw=new THREE.InstancedMesh(cg.wood, mats.wood, INST.cannons.length);
+  INST.cannons.forEach((c,i)=>{ q.setFromAxisAngle(new THREE.Vector3(0,1,0), Math.atan2(c.de,-c.dn)); m4.compose(new THREE.Vector3(c.e,c.y,-c.n),q,sc); ci.setMatrixAt(i,m4); cw.setMatrixAt(i,m4); });
+  ci.castShadow=cw.castShadow=true; scene.add(ci,cw);
+  // faroles + charcos de luz
+  STUFF.lampMat=new THREE.MeshStandardMaterial({color:0x2b241c,emissive:0xffb15a,emissiveIntensity:0}); const post=mergeGeometries([clean(T(new THREE.CylinderGeometry(0.07,0.11,3.4,8),0,1.7,0)), clean(T(new THREE.CylinderGeometry(0.2,0.2,0.18,8),0,0.09,0))]);
+  const lant=clean(T(new THREE.CylinderGeometry(0.22,0.14,0.5,6),0,3.62,0));
+  const lp=new THREE.InstancedMesh(post, mats.iron, INST.lamps.length), ll=new THREE.InstancedMesh(lant, STUFF.lampMat, INST.lamps.length);
+  STUFF.poolMat=new THREE.MeshBasicMaterial({map:glowTexture(),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:0,fog:false});
+  const pg=new THREE.PlaneGeometry(14,14); pg.rotateX(-Math.PI/2); const pl=new THREE.InstancedMesh(pg, STUFF.poolMat, INST.lamps.length);
+  INST.lamps.forEach((l,i)=>{ m4.makeTranslation(l.e,l.y,-l.n); lp.setMatrixAt(i,m4); ll.setMatrixAt(i,m4); m4.makeTranslation(l.e,l.y+0.06,-l.n); pl.setMatrixAt(i,m4); });
+  lp.castShadow=true; pl.renderOrder=2; scene.add(lp,ll,pl);
+  // trazos punteados (tramos demolidos)
+  const dg=new THREE.PlaneGeometry(4.5,1.1); dg.rotateX(-Math.PI/2); const dm=new THREE.InstancedMesh(dg,new THREE.MeshBasicMaterial({color:0xd0675a,transparent:true,opacity:0.9}),DASH.length);
+  DASH.forEach((d,i)=>{ q.setFromAxisAngle(new THREE.Vector3(0,1,0), d.ang); m4.compose(new THREE.Vector3(d.e,0.08,-d.n),q,sc); dm.setMatrixAt(i,m4); }); scene.add(dm);
+  // escolleras
+  const rk=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0), stoneMat(), STUFF.rocks.length); const e3=new THREE.Euler();
+  STUFF.rocks.forEach((r,i)=>{ q.setFromEuler(e3.set(r.rx,r.ry,0)); m4.compose(new THREE.Vector3(r.e,WATER_Y+0.1,-r.n),q,new THREE.Vector3(r.s,r.s*0.7,r.s)); rk.setMatrixAt(i,m4); }); rk.receiveShadow=true; scene.add(rk);
+  // ciudad
+  const hb=new THREE.BoxGeometry(1,1,1); hb.translate(0,0.5,0); const hm=new THREE.InstancedMesh(hb, houseMat(), HOUSES.length);
+  HOUSES.forEach((h,i)=>{ q.setFromAxisAngle(new THREE.Vector3(0,1,0), Math.atan2(h.fn,h.fe)); m4.compose(new THREE.Vector3(h.e,0,-h.n),q,new THREE.Vector3(h.w,h.h,h.d)); hm.setMatrixAt(i,m4); hm.setColorAt(i,h.c); });
+  hm.castShadow=hm.receiveShadow=true; scene.add(hm);
+  const rg=gableGeo(); const rm=new THREE.InstancedMesh(rg, roofMat(), ROOFS.length);
+  ROOFS.forEach((h,i)=>{ q.setFromAxisAngle(new THREE.Vector3(0,1,0), Math.atan2(h.fn,h.fe)); m4.compose(new THREE.Vector3(h.e,h.y,-h.n),q,new THREE.Vector3(h.w,h.h,h.d)); rm.setMatrixAt(i,m4); rm.setColorAt(i,h.c); });
+  rm.castShadow=rm.receiveShadow=true; scene.add(rm);
+  const bgeo=new THREE.BoxGeometry(1,1.1,0.9); bgeo.translate(0,0.55,0.45); const bm=new THREE.InstancedMesh(bgeo, mats.wood, Math.max(1,BALC.length)); let bi=0;
+  BALC.forEach(b=>{ q.setFromAxisAngle(new THREE.Vector3(0,1,0), Math.atan2(b.fn,b.fe)); const off=new THREE.Vector3(0,0,b.off).applyQuaternion(q);
+      m4.compose(new THREE.Vector3(b.e,b.y,-b.n).add(off),q,new THREE.Vector3(b.w,1,1)); bm.setMatrixAt(bi++,m4); }); bm.count=bi; bm.castShadow=true; scene.add(bm);
+  buildSea(); setupLabels();
+}
+function gableGeo(){ // tejado a dos aguas unitario (cumbrera a lo largo de X)
+  const G=new Geo(); const a=[-0.5,0,-0.5],b=[0.5,0,-0.5],c=[0.5,0,0.5],d=[-0.5,0,0.5],e=[-0.5,1,0],f=[0.5,1,0];
+  const F=(p,q,r)=>{ const n=new THREE.Vector3().crossVectors(new THREE.Vector3(q[0]-p[0],q[1]-p[1],q[2]-p[2]),new THREE.Vector3(r[0]-p[0],r[1]-p[1],r[2]-p[2])).normalize(); const nn=[n.x,n.y,n.z]; G.tri(p,q,r,nn,nn,nn,[p[0],p[1]],[q[0],q[1]],[r[0],r[1]]); };
+  F(a,e,b); F(b,e,f); F(d,c,f); F(d,f,e); F(a,d,e); F(b,f,c);
+  return G.geometry();
+}
+
+/* =====================================================================
+   setupUI: etiquetas, panel de información, controles, recorrido
+   ===================================================================== */
+const LABEL_OBJS=[];
+function infoFor(id){
+  const dash='<span class="tag">no consta en el JSON</span>';
+  const cls=c=>c==='EXACTO'?'<span class="tag ex">EXACTO</span>':c?`<span class="tag ap">${c}</span>`:'';
+  const item=[...CHAIN_A,...CHAIN_B].find(i=>i.id===id);
+  const YEARS={ sdomingo:'1614 — inicio de la construcción (cronología)', scatalina:'1608–1631 — Cristóbal de Roda (ingenieros)', slucas:'1608–1631 — Cristóbal de Roda (ingenieros)',
+    sclara:'1742 — reconstrucción (detalles)', merced:'1708–1732 — reconstrucción de Herrera y Sotomayor (detalles/ingenieros)', steresa:'1631 · restaurado y terraplenado en 1732',
+    chambacu:'1631 — Francisco de Murga', sbarbara:'1631 — Francisco de Murga', sjose:'1631 — Francisco de Murga', reducto:'1631 — Francisco de Murga',
+    tenaza:'1765–1771 — Antonio de Arévalo (cronología)', reloj:'Portada: desde 1714 (Herrera y Sotomayor) · Torre: 1888', paz:'1905 (cronología)', medialuna:'1631 · demolida en 1893',
+    bovedas:'1789–1798 (conflicto en el JSON: la ETCAR da 1792–1798)', matuna:'Demolido entre 1880 y 1924', santiago:null, sfj:null, signacio:null, sje:null, scruz:null, spm:null, pdomingo:null, pcatalina:null, castillo:null };
+  let h=`<button class="x" title="Cerrar">×</button><h2>${NAMES[id]}</h2><div class="yr">${YEARS[id]||'Año: no consta en el JSON'}</div>`;
+  const src=u=>u?`<p><a href="${u}" target="_blank" rel="noopener">${u}</a></p>`:'';
+  if(item && item.data || id==='tenaza'){ const b= id==='tenaza'? bd('Tenaza') : item.data;
+    let area=b.area_m2; let areaTxt=`${area.valor.toLocaleString('es')} m² ${cls(area.clasificacion)}`;
+    if(item && item.area) areaTxt=`${item.area} m² ${cls('EXACTO')} <span class="tag">nota del grupo</span>`; else if(b.nombre.startsWith('Otros')) areaTxt='no consta para este baluarte '+dash;
+    const g=b.geometria_planta;
+    h+=`<dl><dt>Forma</dt><dd>${b.forma}${item&&item.vacio?' (baluarte vacío)':''}</dd><dt>Área</dt><dd>${areaTxt}</dd><dt>Altura</dt><dd>${b.altura_m.valor} m ${cls(b.altura_m.clasificacion)}</dd>
+      <dt>Caras</dt><dd>${g.longitud_caras_m.valor} m ${cls(g.longitud_caras_m.clasificacion)}</dd><dt>Flancos</dt><dd>${g.longitud_flancos_m.valor} m ${cls(g.longitud_flancos_m.clasificacion)}</dd><dt>Gola</dt><dd>${g.ancho_gola_m.valor} m ${cls(g.ancho_gola_m.clasificacion)}</dd></dl>
+      <p>${b.detalles}</p>${src(b.fuente)}`;
+  } else if(['reloj','pdomingo','pcatalina','paz','medialuna'].includes(id)){
+    const key={reloj:'Reloj',pdomingo:'Santo Domingo',pcatalina:'Santa Catalina',paz:'Paz y la Concordia',medialuna:'Media Luna'}[id]; const p=DATA.puertas.find(x=>x.nombre.includes(key));
+    h+=`<p><b>Ubicación.</b> ${p.ubicacion}</p><p>${p.arquitectura}</p>`;
+    if(p.dimensiones_modelado){ const d=p.dimensiones_modelado; h+=`<dl><dt>Altura total</dt><dd>${d.altura_total_torre_m.valor} m ${cls(d.altura_total_torre_m.clasificacion)}</dd><dt>Ancho portada</dt><dd>${d.ancho_portada_m.valor} m ${cls(d.ancho_portada_m.clasificacion)}</dd><dt>Fondo túnel</dt><dd>${d.fondo_tunel_m.valor} m ${cls(d.fondo_tunel_m.clasificacion)}</dd></dl>`; }
+    h+=src(p.fuente);
+  } else if(id==='bovedas'){ const b=BOV, d=b.dimensiones_modelado;
+    h+=`<p>${b.nombre_oficial}. Ingeniero: ${b.ingeniero}. ${b.ubicacion}.</p><dl><dt>Bóvedas</dt><dd>${b.numero_bovedas.valor} ${cls('EXACTO')}</dd><dt>Arcos</dt><dd>${b.numero_arcos_portada.valor} ${cls('EXACTO')}</dd><dt>Plataforma</dt><dd>${b.area_plataforma_m2.valor} m² ${cls('EXACTO')}</dd><dt>Largo</dt><dd>${d.largo_total_m.valor} m ${cls(d.largo_total_m.clasificacion)}</dd><dt>Fachada</dt><dd>${d.altura_fachada_m.valor} m ${cls(d.altura_fachada_m.clasificacion)}</dd></dl><p>${b.arquitectura_y_funcion}</p>${b.fuentes.map(src).join('')}`;
+  } else if(id==='matuna'){ const p=DATA.trazado.puntos_en_orden.find(x=>x.estado==='desaparecido'&&x.nombre.includes('Matuna')); h+=`<p>${p.nombre}</p><p>${p.nota}</p>${src(p.fuente)}`; }
+  else if(id==='castillo'){ h+=`<p>${DATA.contexto_paisaje}</p><p><span class="tag ap">APROXIMADO</span> Solo silueta: el JSON no trae geometría del castillo; se ubica a 1,25 km al SE de Santa Catalina como indica el JSON.</p>`; }
+  return h;
+}
+function setupLabels(){
+  for(const L of INST.labels){ const el=document.createElement('div'); el.className='lbl'+(L.gate?' gate':'')+(L.gone?' gone':''); el.textContent=NAMES[L.id]||L.id;
+    el.addEventListener('pointerdown',ev=>{ev.stopPropagation(); showInfo(L.id);});
+    const o=new CSS2DObject(el); o.position.set(L.e,L.y,-L.n); scene.add(o); LABEL_OBJS.push(o); }
+}
+const info=document.getElementById('info');
+function showInfo(id){ info.innerHTML=infoFor(id); info.hidden=false; info.querySelector('.x').onclick=()=>info.hidden=true; }
+const VIEWS={};
+function setupUI(){
+  const B=BASTIONS; const at=(o,dE,dN,h,ty=0)=>({t:new THREE.Vector3(o.e,ty,-o.n), c:new THREE.Vector3(o.e+dE,h,-(o.n+dN))});
+  VIEWS.general=at({e:60,n:420},-900,700,620,0); VIEWS.reloj=at(STUFF.reloj,-35,-70,28,10); VIEWS.bovedas=at(STUFF.bovedas,-30,-120,40,6);
+  VIEWS.catalina=at(B.scatalina,-170,140,70,8); VIEWS.lucas=at(B.slucas,160,-40,45,6); VIEWS.domingo=at(B.sdomingo,-150,60,45,6);
+  VIEWS.getsemani=at({e:420,n:-200},380,-260,230,0); VIEWS.matuna=at(STUFF.matuna,220,-160,180,0); VIEWS.castillo=at(CASTILLO,-420,320,160,30);
+  const hour=document.getElementById('hour'); hour.oninput=()=>setTime(+hour.value); setTime(+hour.value);
+  document.getElementById('goto').onchange=e=>{ const v=e.target.value; if(VIEWS[v]){ if(UIState.mode==='walk') exitWalk(); flyTo(VIEWS[v]); } e.target.value=''; };
+  document.getElementById('cLabels').onchange=e=>{ UIState.labels=e.target.checked; labelR.domElement.style.display=UIState.labels?'':'none'; };
+  document.getElementById('cShadows').onchange=e=>{ UIState.shadows=e.target.checked; setTime(+hour.value); };
+  document.getElementById('bOrbit').onclick=()=>exitWalk();
+  document.getElementById('bWalk').onclick=()=>enterWalk();
+  renderer.domElement.addEventListener('click',()=>{ if(UIState.mode==='walk' && !fpc.isLocked) fpc.lock(); });
+  fpc.addEventListener('lock',()=>{ document.getElementById('cross').style.display='block'; });
+  fpc.addEventListener('unlock',()=>{ document.getElementById('cross').style.display='none'; });
+  addEventListener('keydown',e=>{ KEYS[e.code]=true; }); addEventListener('keyup',e=>{ KEYS[e.code]=false; });
+  addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); labelR.setSize(innerWidth,innerHeight); });
+  camera.position.copy(new THREE.Vector3(STUFF.bovedas.e-260, 95, -(STUFF.bovedas.n+260))); orbit.target.set(STUFF.bovedas.e+40, 4, -(STUFF.bovedas.n-40)); orbit.update();
+}
+let FLY=null;
+function flyTo(v){ FLY={t0:performance.now(), c0:camera.position.clone(), t0v:orbit.target.clone(), c1:v.c, t1:v.t}; }
+const KEYS={}; const WALKER={e:0,n:0,y:0};
+function enterWalk(){
+  UIState.mode='walk'; orbit.enabled=false; document.getElementById('bWalk').classList.add('on'); document.getElementById('bOrbit').classList.remove('on'); document.getElementById('walkHint').hidden=false;
+  const s=STUFF.walkStart; WALKER.e=s.e; WALKER.n=s.n; WALKER.y=heightAt(s.e,s.n); if(!isFinite(WALKER.y)) WALKER.y=8.5;
+  camera.position.set(WALKER.e, WALKER.y+EYE, -WALKER.n); camera.lookAt(WALKER.e+s.dir[0]*10, WALKER.y+EYE, -(WALKER.n+s.dir[1]*10));
+  try{ fpc.lock(); }catch(e){}
+}
+function exitWalk(){ if(UIState.mode!=='walk') return; if(fpc.isLocked) fpc.unlock(); UIState.mode='orbit'; orbit.enabled=true; document.getElementById('bWalk').classList.remove('on'); document.getElementById('bOrbit').classList.add('on'); document.getElementById('walkHint').hidden=true;
+  const d=new THREE.Vector3(); camera.getWorldDirection(d); orbit.target.copy(camera.position).addScaledVector(d,30); orbit.target.y=Math.max(0,orbit.target.y-5); camera.position.y+=20; camera.position.addScaledVector(d,-30); orbit.update(); }
+function walkStep(dt){
+  const sp=(KEYS.ShiftLeft||KEYS.ShiftRight)?7.5:3.2; let f=0,s=0; if(KEYS.KeyW||KEYS.ArrowUp)f+=1; if(KEYS.KeyS||KEYS.ArrowDown)f-=1; if(KEYS.KeyD||KEYS.ArrowRight)s+=1; if(KEYS.KeyA||KEYS.ArrowLeft)s-=1;
+  if(f||s){ const d=new THREE.Vector3(); camera.getWorldDirection(d); d.y=0; d.normalize(); const r=new THREE.Vector3(-d.z,0,d.x);
+    const mv=d.multiplyScalar(f).add(r.multiplyScalar(s)).normalize().multiplyScalar(sp*dt);
+    const tryMove=(de,dn)=>{ const ne=WALKER.e+de, nn=WALKER.n+dn; const h=heightAt(ne,nn); if(isFinite(h) && Math.abs(h-WALKER.y)<0.62){ WALKER.e=ne; WALKER.n=nn; WALKER.y=h; return true;} return false; };
+    if(!tryMove(mv.x,-mv.z)){ tryMove(mv.x,0) || tryMove(0,-mv.z); } }
+  camera.position.x=WALKER.e; camera.position.z=-WALKER.n; camera.position.y=lerp(camera.position.y, WALKER.y+EYE, Math.min(1,dt*12));
+}
+
+/* =====================================================================
+   BUCLE
+   ===================================================================== */
+const clock=new THREE.Clock(); let fc=0, ft=0; const fpsEl=document.getElementById('fps');
+function loop(){
+  const dt=Math.min(0.05,clock.getDelta()); U.time.value+=dt;
+  if(FLY){ const k=Math.min(1,(performance.now()-FLY.t0)/1600), e=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2; camera.position.lerpVectors(FLY.c0,FLY.c1,e); orbit.target.lerpVectors(FLY.t0v,FLY.t1,e); if(k>=1) FLY=null; }
+  if(UIState.mode==='walk') walkStep(dt); else orbit.update();
+  // sombra que sigue al punto de interés
+  const tgt = UIState.mode==='walk' ? camera.position : orbit.target; const dist=UIState.mode==='walk'?60:Math.min(600,camera.position.distanceTo(orbit.target));
+  const ext=clamp(dist*0.9,120,420); const sc=sun.shadow.camera; if(Math.abs(sc.right-ext)>20){ sc.left=-ext; sc.right=ext; sc.top=ext; sc.bottom=-ext; sc.updateProjectionMatrix(); }
+  const snap=ext*2/2048; const tx=Math.round(tgt.x/snap)*snap, tz=Math.round(tgt.z/snap)*snap;
+  sun.target.position.set(tx,0,tz); sun.position.set(tx,0,tz).addScaledVector(SUNSTATE.dir,1200);
+  renderer.render(scene,camera); if(UIState.labels) labelR.render(scene,camera);
+  fc++; ft+=dt; if(ft>0.5){ fpsEl.textContent=Math.round(fc/ft)+' fps'; fc=0; ft=0; }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(()=>{ try{ build(); setupUI(); document.getElementById('loading').remove(); window.__ready=true; loop(); } catch(e){ console.error(e); document.getElementById('loading').textContent='Error: '+e.message; window.__err=e.stack; } });
+</script>
+</body>
+</html>
